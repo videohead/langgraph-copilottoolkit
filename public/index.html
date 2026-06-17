@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangGraph Chart Viewer</title>
+    <style>
+      :root {
+        --bg: #f4f5f7;
+        --fg: #1d2430;
+        --card: #ffffff;
+        --accent: #0f6cbd;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: radial-gradient(circle at 20% 20%, #ffffff, var(--bg));
+        color: var(--fg);
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid #d9dee5;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 8px 24px rgba(10, 20, 30, 0.08);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0 0 12px;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        margin-top: 10px;
+        border-radius: 8px;
+        border: 1px solid #e6ebf2;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>LangGraph Mermaid Chart</h1>
+      <p>
+        This page serves the generated chart image.
+        Regenerate with: <code>./scripts/render-mermaid-png.sh</code>
+      </p>
+      <section class="card">
+        <p><a href="/swarm-chart.png" target="_blank" rel="noreferrer">Open PNG directly</a></p>
+        <img id="chart" src="/swarm-chart.png" alt="Rendered Mermaid swarm chart" />
+      </section>
+    </main>
+    <script>
+      const chart = document.getElementById("chart");
+      const base = "/swarm-chart.png";
+
+      // Poll for updates by cache-busting the chart URL every 2 seconds.
+      setInterval(() => {
+        chart.src = `${base}?t=${Date.now()}`;
+      }, 2000);
+    </script>
+  </body>
+</html>

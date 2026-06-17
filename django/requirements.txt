@@ -1,0 +1,6 @@
+django>=5.0,<6.0
+uvicorn[standard]>=0.29.0
+django-cors-headers>=4.3.0
+langgraph>=0.2.39
+langchain-ollama>=0.2.0
+langchain-core>=0.3.0

@@ -1,0 +1,222 @@
+# LangGraph + CopilotKit (Lando)
+
+A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React frontend — all orchestrated by Lando with no cloud licensing required.
+
+## Architecture
+
+```
+Browser
+  └─▶ langgraph.lndo.site          (Next.js :3000  — CopilotKit UI)
+        └─▶ /api/copilotkit/*       (CopilotKit Runtime — Next.js API route)
+              └─▶ django:8080       (Django AG-UI streaming endpoint)
+                    └─▶ ollama:11434 (Ollama LLM)
+```
+
+Additional services:
+
+| URL | Service | Purpose |
+|-----|---------|---------|
+| `langgraph.lndo.site` | `frontend` | React chat UI with graph selector |
+| `api.langgraph.lndo.site` | `django` | AG-UI + REST API |
+| `langgraph-api.lndo.site` | `appserver` | Raw LangGraph dev server |
+| `charts.langgraph.lndo.site` | `charts` | Mermaid chart viewer |
+
+> **Note:** `.lndo.site` DNS may be blocked by system security policy. Use `lando info` to get the `localhost` port for each service.
+
+---
+
+## Quick start
+
+### 1. Start all services
+
+```bash
+lando start
+```
+
+### 2. Pull the Ollama model (once)
+
+```bash
+lando pull-model
+```
+
+Or use the helper script:
+
+```bash
+./scripts/pull-model.sh
+```
+
+### 3. Open the browser UI
+
+```
+http://langgraph.lndo.site
+```
+
+The CopilotKit chat sidebar opens automatically. Use the **Agent** dropdown in the header to switch between graphs.
+
+### 4. Stop
+
+```bash
+lando stop
+```
+
+### 5. Rebuild after dependency changes
+
+```bash
+lando rebuild -y
+```
+
+---
+
+## Available graphs
+
+| Graph ID | Description |
+|----------|-------------|
+| `basic` | Single-node chat agent backed by Ollama |
+| `swarm_v1` | Multi-agent pipeline: planner → coder → reviewer → writer |
+
+---
+
+## Tooling commands
+
+```bash
+# Frontend (Next.js)
+lando npm install
+lando npm run build
+lando npx <command>
+
+# Django API
+lando django shell
+lando django migrate
+lando pip install <package>
+lando python <script>
+
+# Ollama model management
+lando pull-model
+lando ollama list
+
+# CLI graph runner (bypasses the UI)
+lando graph basic "Write a hello world in Rust"
+lando graph swarm_v1 "Design a secure file upload endpoint in FastAPI"
+```
+
+---
+
+## CLI graph runner (no browser needed)
+
+```bash
+./scripts/run-graph.sh <graph_id> "your prompt"
+```
+
+`run-graph.sh` auto-detects the current Lando appserver localhost URL.
+
+```bash
+./scripts/run-graph.sh basic "Write a short hello world in Python"
+./scripts/run-graph.sh swarm_v1 "Design a secure file upload endpoint in FastAPI"
+```
+
+Override the URL manually:
+
+```bash
+BASE_URL=http://localhost:<PORT> ./scripts/run-graph.sh swarm_v1 "your prompt"
+```
+
+---
+
+## Mermaid chart viewer
+
+Generate a PNG from the Mermaid block in this README:
+
+```bash
+./scripts/render-mermaid-png.sh
+```
+
+One-command preview loop (regen + open + auto-refresh):
+
+```bash
+./scripts/preview-chart-loop.sh
+```
+
+This writes `public/swarm-chart.png` and serves it at `charts.langgraph.lndo.site` (or `http://localhost:8124` with Docker Compose).
+
+---
+
+## Docker Compose (without Lando)
+
+```bash
+docker compose up --build
+```
+
+Port mapping:
+
+| Port | Service |
+|------|---------|
+| 3000 | Next.js frontend |
+| 8080 | Django API |
+| 8123 | LangGraph dev server |
+| 8124 | Chart viewer |
+| 11434 | Ollama |
+
+---
+
+## Swarm graph flow
+
+```mermaid
+flowchart TD
+    User[User request] --> Planner[Planner agent]
+    Planner --> Coder[Coder agent]
+    Coder --> Reviewer[Reviewer agent]
+    Reviewer --> Synth[Final synthesizer]
+    Synth --> Output[Final response]
+```
+
+Each node has one job — planner breaks down the task, coder drafts the implementation, reviewer checks for issues, writer synthesises the final answer.
+
+---
+
+## Ollama model storage
+
+Models are stored on the host at `~/.ollama` and persist across rebuilds and container restarts.
+
+---
+
+## Why not `langchain/langgraph-api:latest-py3.12`?
+
+That image requires `LANGSMITH_API_KEY` or `LANGGRAPH_CLOUD_LICENSE_KEY`. This repo uses a local `langgraph dev` runtime so you can run immediately without cloud licensing.
+
+---
+
+## Project structure
+
+```
+.lando.yml                   Lando service definitions + proxy + tooling
+docker-compose.yml           Equivalent Docker Compose stack
+Dockerfile                   LangGraph dev server image
+langgraph.json               Graph ID → module path mappings
+
+frontend/                    Next.js + CopilotKit
+  app/
+    layout.tsx               CopilotKit provider (points at /api/copilotkit)
+    page.tsx                 Chat UI with graph selector
+    api/copilotkit/
+      [...path]/route.ts     CopilotKit Runtime — proxies to Django
+  Dockerfile
+
+django/                      Django AG-UI API
+  agents/
+    views.py                 AG-UI SSE endpoint + health + graph list
+    urls.py
+  langgraph_api/
+    settings.py
+    asgi.py                  ASGI entry point (uvicorn)
+  Dockerfile
+
+src/
+  basic_graph/graph.py       Ollama-backed single-node chat graph
+  swarm_graph/graph.py       Multi-agent swarm graph
+
+scripts/
+  run-graph.sh               CLI runner for any graph ID
+  pull-model.sh              Pull the Ollama model
+  render-mermaid-png.sh      Render Mermaid diagrams to PNG
+  preview-chart-loop.sh      Live-preview loop for chart PNG
+```

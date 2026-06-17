@@ -1,0 +1,29 @@
+{
+  "name": "langgraph-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@ag-ui/client": "^0.0.57",
+    "@copilotkit/react-core": "^1.60.2",
+    "@copilotkit/react-ui": "^1.60.2",
+    "@copilotkit/runtime": "^1.60.2",
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5.4.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
+  }
+}

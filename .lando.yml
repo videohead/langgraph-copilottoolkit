@@ -1,0 +1,147 @@
+name: langgraph
+services:
+  ollama:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      image: ollama/ollama:latest
+      command: ollama serve
+      ports:
+        - "11434"
+      volumes:
+        - ~/.ollama:/root/.ollama
+
+  # LangGraph dev server (raw API / graph runner)
+  appserver:
+    api: 3
+    type: lando
+    services:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      command: langgraph dev --host 0.0.0.0 --port 8000
+      environment:
+        OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
+        OLLAMA_MODEL: qwen2.5-coder:7b
+      ports:
+        - "8000"
+    moreHttpPorts:
+      - 8000
+
+  # Django — AG-UI streaming endpoint + REST API
+  django:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      build:
+        context: .
+        dockerfile: django/Dockerfile
+      command: uvicorn langgraph_api.asgi:application --host 0.0.0.0 --port 8080 --reload
+      environment:
+        OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
+        OLLAMA_MODEL: qwen2.5-coder:7b
+        PYTHONPATH: /app
+        DEBUG: "true"
+        DJANGO_SECRET_KEY: dev-secret-key-please-change-in-production
+      ports:
+        - "8080"
+      volumes:
+        - ./django:/app
+        - ./src:/app/src:ro
+    moreHttpPorts:
+      - 8080
+
+  # Next.js + CopilotKit frontend
+  frontend:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      command: npm run dev
+      environment:
+        # Internal Lando hostname for Django
+        DJANGO_INTERNAL_URL: http://django.langgraph.internal:8080
+        NEXT_TELEMETRY_DISABLED: "1"
+        WATCHPACK_POLLING: "true"
+      ports:
+        - "3000"
+      volumes:
+        - ./frontend:/app
+        # Preserve node_modules installed inside the image
+        - /app/node_modules
+    moreHttpPorts:
+      - 3000
+
+  charts:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      image: nginx:alpine
+      command: nginx -g 'daemon off;'
+      ports:
+        - "80"
+      volumes:
+        - ./public:/usr/share/nginx/html:ro
+
+proxy:
+  # Frontend is the main entry point
+  frontend:
+    - langgraph.lndo.site:3000
+  # Django REST / AG-UI API
+  django:
+    - api.langgraph.lndo.site:8080
+  # LangGraph raw API (graphs, runs, etc.)
+  appserver:
+    - langgraph-api.lndo.site:8000
+  charts:
+    - charts.langgraph.lndo.site:80
+
+tooling:
+  # LLM model management
+  pull-model:
+    service: ollama
+    cmd: ollama pull qwen2.5-coder:7b
+    description: Pull the qwen2.5-coder:7b model into the local Ollama container
+  ollama:
+    service: ollama
+    cmd: ollama
+    description: Run ollama CLI commands (e.g. lando ollama list)
+
+  # Frontend tooling
+  npm:
+    service: frontend
+    cmd: npm
+    description: Run npm commands in the frontend container
+  npx:
+    service: frontend
+    cmd: npx
+    description: Run npx commands in the frontend container
+
+  # Django / Python tooling
+  django:
+    service: django
+    cmd: python manage.py
+    description: Run Django management commands (e.g. lando django shell)
+  pip:
+    service: django
+    cmd: pip
+    description: Run pip commands in the django container
+  python:
+    service: django
+    cmd: python
+    description: Run python in the django container
+
+  # Graph runner (CLI)
+  graph:
+    service: appserver
+    cmd: python run_graph.py
+    description: Run the CLI graph runner (e.g. lando graph basic "hello")
+  shell:
+    service: appserver
+    cmd: /bin/sh
