@@ -53,6 +53,20 @@ http://langgraph.lndo.site
 
 The CopilotKit chat sidebar opens automatically. Use the **Agent** dropdown in the header to switch between graphs.
 
+### Frontend import note
+
+Next.js 15 rejects the `@copilotkit/react-core/v2` barrel inside client boundaries because the package's `dist/v2/index.mjs` uses `export *`.
+
+Use the package-root `@copilotkit/react-core` import for the top-level app shell provider in `frontend/app/layout.tsx`, and use `@copilotkit/react-core/v2/headless` for the agent-aware hooks and configuration provider in client components.
+
+The hook-based pieces you can rely on are:
+
+- `CopilotChatConfigurationProvider`
+- `useCopilotChatConfiguration`
+- `useAgent`
+
+That split keeps the frontend build working while still letting the selected graph flow through the chat configuration layer.
+
 ### 4. Stop
 
 ```bash

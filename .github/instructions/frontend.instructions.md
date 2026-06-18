@@ -24,25 +24,29 @@ frontend/
   .env.local.example
 ```
 
-## Package imports (CopilotKit v2)
+## Package imports
 
 | Symbol | Import path |
 |--------|-------------|
-| `CopilotKit` (provider) | `@copilotkit/react-core/v2` |
-| `useCopilotChat`, `useAgent` | `@copilotkit/react-core/v2` |
+| `CopilotKit` (app shell provider) | `@copilotkit/react-core` |
+| `CopilotChatConfigurationProvider`, `useCopilotChatConfiguration`, `useAgent` | `@copilotkit/react-core/v2/headless` |
 | `CopilotSidebar`, `CopilotPopup` | `@copilotkit/react-ui` |
 | UI styles | `@copilotkit/react-ui/styles.css` |
 | `CopilotRuntime`, `createCopilotRuntimeHandler` | `@copilotkit/runtime/v2` |
 | `HttpAgent` | `@ag-ui/client` |
 
-Do not mix v1 and v2 import paths in the same file.
+Do not mix v1 and v2 import paths in the same file. In particular, avoid importing `@copilotkit/react-core/v2` from a client boundary such as `app/layout.tsx`; Next.js 15 rejects the `dist/v2/index.mjs` barrel because it uses `export *`.
+
+Use the package-root `@copilotkit/react-core` import for the app shell provider in `app/layout.tsx`, and use `@copilotkit/react-core/v2/headless` for the agent/configuration hooks inside client components.
+
+Known issue: the installed v2 headless subpath exposes `CopilotChatConfigurationProvider`, `useCopilotChatConfiguration`, and `useAgent`, but it does not export a top-level provider component. The app shell still needs the package-root `CopilotKit` from `@copilotkit/react-core`.
 
 ## CopilotKit provider (`app/layout.tsx`)
 
 The provider points at the local Next.js API route — same-origin, no CORS:
 
 ```tsx
-import { CopilotKit } from "@copilotkit/react-core/v2";
+import { CopilotKit } from "@copilotkit/react-core";
 
 <CopilotKit runtimeUrl="/api/copilotkit">{children}</CopilotKit>
 ```

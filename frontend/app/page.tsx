@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CopilotChatConfigurationProvider } from "@copilotkit/react-core/v2/headless";
 import { CopilotSidebar } from "@copilotkit/react-ui";
 
 const GRAPHS = [
@@ -65,14 +66,15 @@ export default function Home() {
         CopilotSidebar renders a floating sidebar with the chat interface.
         agentId selects which of the registered CopilotRuntime agents to use.
       */}
-      <CopilotSidebar
-        agentId={selectedGraph}
-        defaultOpen={true}
-        labels={{
-          title: GRAPHS.find((g) => g.id === selectedGraph)?.label ?? "AI Chat",
-          initial: `Hi! I'm the **${GRAPHS.find((g) => g.id === selectedGraph)?.label}** agent. How can I help?`,
-        }}
-      />
+      <CopilotChatConfigurationProvider agentId={selectedGraph}>
+        <CopilotSidebar
+          defaultOpen={true}
+          labels={{
+            title: GRAPHS.find((g) => g.id === selectedGraph)?.label ?? "AI Chat",
+            initial: `Hi! I'm the **${GRAPHS.find((g) => g.id === selectedGraph)?.label}** agent. How can I help?`,
+          }}
+        />
+      </CopilotChatConfigurationProvider>
     </main>
   );
 }

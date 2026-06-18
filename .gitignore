@@ -1,0 +1,4 @@
+# Next.js build output
+frontend/.next/
+frontend/out/
+frontend/.turbo/
