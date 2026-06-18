@@ -67,6 +67,15 @@ The hook-based pieces you can rely on are:
 
 That split keeps the frontend build working while still letting the selected graph flow through the chat configuration layer.
 
+### CopilotKit handshake note
+
+The Next.js runtime exposes both of these routes:
+
+- `POST /api/copilotkit` for the single-endpoint CopilotKit handshake
+- `GET /api/copilotkit/info` for REST-style runtime discovery
+
+If the browser shows `runtime_info_fetch_failed`, make sure the root route exists and restart the frontend dev server after clearing any stale `.next` cache.
+
 ### 4. Stop
 
 ```bash

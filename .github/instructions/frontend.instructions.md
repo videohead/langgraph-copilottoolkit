@@ -53,7 +53,7 @@ import { CopilotKit } from "@copilotkit/react-core";
 
 Do not set `publicApiKey` or `selfManagedAgents` here — all agent traffic flows through the runtime route.
 
-## CopilotKit Runtime route (`app/api/copilotkit/[...path]/route.ts`)
+## CopilotKit Runtime routes (`app/api/copilotkit/route.ts` and `app/api/copilotkit/[...path]/route.ts`)
 
 ```typescript
 import { CopilotRuntime, createCopilotRuntimeHandler } from "@copilotkit/runtime/v2";
@@ -73,6 +73,13 @@ const handler = createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotki
 export async function GET(req: NextRequest) { return handler(req); }
 export async function POST(req: NextRequest) { return handler(req); }
 ```
+
+The frontend now uses a shared runtime helper so both routes stay in sync:
+
+- `app/api/copilotkit/route.ts` handles the single-endpoint CopilotKit handshake (`POST /api/copilotkit` with `{ method: "info" }`).
+- `app/api/copilotkit/[...path]/route.ts` handles REST-style subpaths such as `/info` and the agent run paths.
+
+If the browser shows `runtime_info_fetch_failed`, verify that the root route exists and that the frontend dev server was restarted after any `.next` cleanup.
 
 - `DJANGO_INTERNAL_URL` is a Docker-internal URL (`http://django:8080`). It is **never** exposed to the browser.
 - Both `GET` and `POST` must be exported — `GET /info` is used for agent discovery.
@@ -101,6 +108,17 @@ lando rebuild -y
 ```
 
 After `lando npm install` the new package is only in the volume-mounted `node_modules`. Run `lando rebuild -y` so the next fresh container build includes it in the image layer.
+
+## Frontend tests
+
+The frontend has a lightweight Node test script in `frontend/package.json`:
+
+```bash
+cd frontend
+npm test
+```
+
+Current coverage lives in `frontend/tests/copilotkit-runtime.test.mjs`, which checks both `POST /api/copilotkit` and `GET /api/copilotkit/info`.
 
 ## Tailwind
 
