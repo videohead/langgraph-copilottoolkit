@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { CopilotKit } from "@copilotkit/react-core";
 import "@copilotkit/react-ui/styles.css";
 import "./globals.css";
+import CopilotProvider from "./CopilotProvider";
 
 export const metadata: Metadata = {
   title: "LangGraph AI",
@@ -16,11 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {/*
-          runtimeUrl points at the Next.js API route which proxies to Django.
-          Same-origin — no CORS required.
-        */}
-        <CopilotKit runtimeUrl="/api/copilotkit">{children}</CopilotKit>
+        <CopilotProvider>{children}</CopilotProvider>
       </body>
     </html>
   );
