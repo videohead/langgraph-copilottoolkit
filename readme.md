@@ -122,6 +122,37 @@ lando graph basic "Write a hello world in Rust"
 lando graph swarm_v1 "Design a secure file upload endpoint in FastAPI"
 ```
 
+## Shell access mapping (Lando vs Docker)
+
+Use the container shell for app commands. Do not run project `npm`, `python`, `pip`, `manage.py`, or `ollama` commands in the host shell.
+
+| Area | Lando shell | Docker shell |
+|------|-------------|--------------|
+| Frontend (`frontend/`) | `lando ssh -s frontend` | `docker exec -it langgraph-frontend sh` |
+| Django API (`django/`) | `lando ssh -s django` | `docker exec -it langgraph-django sh` |
+| LangGraph runner (`run_graph.py`, `src/`) | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
+| Ollama service | `lando ssh -s ollama` | `docker exec -it ollama sh` |
+| Chart viewer (nginx) | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
+
+Examples:
+
+```bash
+# Lando: run Django migrations inside django service
+lando ssh -s django -c "python manage.py migrate"
+
+# Docker: run frontend install inside frontend container
+docker exec -it langgraph-frontend sh -lc "npm install"
+
+# Docker: run graph CLI in langgraph container
+docker exec -it langgraph-dev sh -lc "python run_graph.py basic 'hello'"
+```
+
+If unsure where to run a command:
+
+1. Pick the service that owns the code/runtime.
+2. Enter that service shell with `lando ssh -s <service>` or `docker exec -it <container> sh`.
+3. Run the command there, not on the host.
+
 ---
 
 ## CLI graph runner (no browser needed)

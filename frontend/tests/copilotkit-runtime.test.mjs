@@ -21,7 +21,7 @@ test("POST /api/copilotkit answers runtime info", async () => {
 
   const payload = await readJson(response);
   assert.equal(payload.version, "1.60.2");
-  assert.deepEqual(Object.keys(payload.agents).sort(), ["basic", "swarm_v1"]);
+  assert.deepEqual(Object.keys(payload.agents).sort(), ["basic", "default", "swarm_v1"]);
 });
 
 test("GET /api/copilotkit/info answers runtime info", async () => {
@@ -35,5 +35,5 @@ test("GET /api/copilotkit/info answers runtime info", async () => {
 
   const payload = await readJson(response);
   assert.equal(payload.version, "1.60.2");
-  assert.deepEqual(Object.keys(payload.agents).sort(), ["basic", "swarm_v1"]);
+  assert.deepEqual(Object.keys(payload.agents).sort(), ["basic", "default", "swarm_v1"]);
 });

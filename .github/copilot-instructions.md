@@ -43,6 +43,27 @@ lando npm install
 lando npm run build
 ```
 
+## Shell Mapping (Mandatory)
+
+Do not assume the host shell has project runtimes installed. Run project commands inside the service container.
+
+| Area | Lando shell | Docker shell |
+|------|-------------|--------------|
+| Frontend | `lando ssh -s frontend` | `docker exec -it langgraph-frontend sh` |
+| Django API | `lando ssh -s django` | `docker exec -it langgraph-django sh` |
+| LangGraph appserver | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
+| Ollama | `lando ssh -s ollama` | `docker exec -it ollama sh` |
+| Charts | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
+
+Command mapping guidance:
+
+- Frontend commands (`npm`, `npx`, Next.js builds/tests) run in `frontend`.
+- Django commands (`python manage.py`, `pip`) run in `django`.
+- Graph CLI commands (`python run_graph.py`, `langgraph dev`) run in `appserver`/`langgraph-dev`.
+- Model commands (`ollama pull`, `ollama list`) run in `ollama`.
+
+If a command fails in host shell (for example `npm: command not found`), switch to the correct container shell instead of retrying on host.
+
 ## Key Conventions
 
 ### Adding a new LangGraph graph

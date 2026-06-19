@@ -6,6 +6,9 @@ export const djangoUrl =
 
 export const runtime = new CopilotRuntime({
   agents: {
+    // CopilotKit internals may fall back to agentId "default".
+    // Map it to the basic graph so runtime sync never fails on that fallback.
+    default: new HttpAgent({ url: `${djangoUrl}/api/agents/basic/` }),
     basic: new HttpAgent({ url: `${djangoUrl}/api/agents/basic/` }),
     swarm_v1: new HttpAgent({ url: `${djangoUrl}/api/agents/swarm_v1/` }),
   },

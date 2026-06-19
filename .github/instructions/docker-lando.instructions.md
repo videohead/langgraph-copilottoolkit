@@ -169,3 +169,17 @@ healthcheck:
 | 11434 | ollama | Ollama API |
 
 When using Lando, host ports are assigned dynamically — use `lando info` to find them. The `.lndo.site` proxy URLs are stable.
+
+## Shell mapping (agent + user safety)
+
+Do not run project runtime commands in the host shell. Use a service shell.
+
+| Area | Lando shell | Docker shell |
+|------|-------------|--------------|
+| Frontend | `lando ssh -s frontend` | `docker exec -it langgraph-frontend sh` |
+| Django | `lando ssh -s django` | `docker exec -it langgraph-django sh` |
+| LangGraph appserver | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
+| Ollama | `lando ssh -s ollama` | `docker exec -it ollama sh` |
+| Charts | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
+
+Use `lando ssh -s <service> -c "<cmd>"` (or `docker exec -it <container> sh -lc "<cmd>"`) for one-off commands.
