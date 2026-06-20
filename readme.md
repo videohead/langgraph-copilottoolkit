@@ -9,10 +9,6 @@ Services are Dockerfile configured and exposed via Lando as a multi-endpoint cap
 I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial and depended on Anthropic or OpenAI. This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to experiment with langgraph and don't want to worry about exceeding token costs.
 I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool or app without any costs other than electricity and local compute.
 
-## How?
-
-I built this in VSCode with a 
-
 ## Architecture
 
 ```
