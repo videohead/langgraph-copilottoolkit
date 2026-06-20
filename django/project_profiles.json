@@ -1,0 +1,20 @@
+[
+  {
+    "id": "workspace",
+    "name": "Workspace Sandbox",
+    "description": "General-purpose profile for graph exploration and file edits in MCP sandbox.",
+    "mcp_root": "/workspace-data",
+    "default_graph": "basic",
+    "allowed_graphs": ["basic", "swarm_v1"],
+    "tool_mode": "read_write"
+  },
+  {
+    "id": "webapp-qa",
+    "name": "Webapp QA and Optimization",
+    "description": "Use swarm graph to test, review, and optimize a target web application workspace.",
+    "mcp_root": "/workspace-data/webapps",
+    "default_graph": "swarm_v1",
+    "allowed_graphs": ["swarm_v1", "basic"],
+    "tool_mode": "read_only"
+  }
+]

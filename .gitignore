@@ -2,3 +2,6 @@
 frontend/.next/
 frontend/out/
 frontend/.turbo/
+
+# Writable sandbox for MCP filesystem server
+workspace-data/

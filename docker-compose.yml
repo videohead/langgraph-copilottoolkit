@@ -3,6 +3,26 @@ networks:
     driver: bridge
 
 services:
+  mcp-filesystem:
+    build:
+      context: .
+      dockerfile: mcp-filesystem/Dockerfile
+    container_name: langgraph-mcp-filesystem
+    networks:
+      - langgraph-net
+    ports:
+      - "8765:8765"
+    environment:
+      MCP_FILESYSTEM_ROOT: /workspace-data
+      MCP_FILESYSTEM_READ_ONLY: "false"
+    volumes:
+      - ./workspace-data:/workspace-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8765/mcp || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
@@ -28,6 +48,8 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      mcp-filesystem:
+        condition: service_healthy
     ports:
       - "8123:8000"
     env_file:
@@ -36,6 +58,7 @@ services:
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
+      MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
     volumes:
       - ./:/app
     command: ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8000"]
@@ -51,6 +74,8 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      mcp-filesystem:
+        condition: service_healthy
     ports:
       - "8080:8080"
     env_file:
@@ -59,6 +84,7 @@ services:
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
+      MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
       DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-dev-secret-key-please-change}"
       DEBUG: "true"
     volumes:

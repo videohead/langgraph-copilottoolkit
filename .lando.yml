@@ -1,5 +1,22 @@
 name: langgraph
 services:
+  mcp-filesystem:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      build:
+        context: .
+        dockerfile: mcp-filesystem/Dockerfile
+      command: python server.py
+      environment:
+        MCP_FILESYSTEM_ROOT: /workspace-data
+        MCP_FILESYSTEM_READ_ONLY: "false"
+      ports:
+        - "8765"
+      volumes:
+        - ./workspace-data:/workspace-data
+
   ollama:
     api: 3
     type: lando
@@ -24,6 +41,7 @@ services:
       environment:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
+        MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
       ports:
         - "8000"
     moreHttpPorts:
@@ -42,6 +60,7 @@ services:
       environment:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
+        MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
         PYTHONPATH: /app
         DEBUG: "true"
         DJANGO_SECRET_KEY: dev-secret-key-please-change-in-production
@@ -90,6 +109,9 @@ services:
         - ./public:/usr/share/nginx/html:ro
 
 proxy:
+  mcp-filesystem:
+    - mcpfs.langgraph.lndo.site:8765
+
   # Frontend is the main entry point
   frontend:
     - langgraph.lndo.site:3000
@@ -145,3 +167,9 @@ tooling:
   shell:
     service: appserver
     cmd: /bin/sh
+
+  # MCP filesystem service
+  mcpfs-shell:
+    service: mcp-filesystem
+    cmd: /bin/sh
+    description: Open a shell inside the MCP filesystem container

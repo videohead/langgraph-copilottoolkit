@@ -16,9 +16,10 @@ Additional services:
 
 | URL | Service | Purpose |
 |-----|---------|---------|
-| `langgraph.lndo.site` | `frontend` | React chat UI with graph selector |
+| `langgraph.lndo.site` | `frontend` | React chat UI with graph + project profile selectors |
 | `api.langgraph.lndo.site` | `django` | AG-UI + REST API |
 | `langgraph-api.lndo.site` | `appserver` | Raw LangGraph dev server |
+| `mcpfs.langgraph.lndo.site` | `mcp-filesystem` | Streamable HTTP MCP filesystem tools (sandboxed) |
 | `charts.langgraph.lndo.site` | `charts` | Mermaid chart viewer |
 
 > **Note:** `.lndo.site` DNS may be blocked by system security policy. Use `lando info` to get the `localhost` port for each service.
@@ -52,6 +53,8 @@ http://langgraph.lndo.site
 ```
 
 The CopilotKit chat sidebar opens automatically. Use the **Agent** dropdown in the header to switch between graphs.
+
+Use the **Profile** dropdown to switch project contexts (filesystem root, tool mode, and allowed graphs) without restarting services.
 
 ### Frontend import note
 
@@ -94,7 +97,7 @@ lando rebuild -y
 
 | Graph ID | Description |
 |----------|-------------|
-| `basic` | Single-node chat agent backed by Ollama |
+| `basic` | ReAct chat agent backed by Ollama with MCP filesystem tools |
 | `swarm_v1` | Multi-agent pipeline: planner → coder → reviewer → writer |
 
 ---
@@ -117,6 +120,9 @@ lando python <script>
 lando pull-model
 lando ollama list
 
+# MCP filesystem service
+lando mcpfs-shell
+
 # CLI graph runner (bypasses the UI)
 lando graph basic "Write a hello world in Rust"
 lando graph swarm_v1 "Design a secure file upload endpoint in FastAPI"
@@ -132,6 +138,7 @@ Use the container shell for app commands. Do not run project `npm`, `python`, `p
 | Django API (`django/`) | `lando ssh -s django` | `docker exec -it langgraph-django sh` |
 | LangGraph runner (`run_graph.py`, `src/`) | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
 | Ollama service | `lando ssh -s ollama` | `docker exec -it ollama sh` |
+| MCP filesystem | `lando ssh -s mcp-filesystem` | `docker exec -it langgraph-mcp-filesystem sh` |
 | Chart viewer (nginx) | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
 
 Examples:
@@ -206,6 +213,7 @@ Port mapping:
 |------|---------|
 | 3000 | Next.js frontend |
 | 8080 | Django API |
+| 8765 | MCP filesystem (Streamable HTTP `/mcp`) |
 | 8123 | LangGraph dev server |
 | 8124 | Chart viewer |
 | 11434 | Ollama |
@@ -231,6 +239,17 @@ Each node has one job — planner breaks down the task, coder drafts the impleme
 
 Models are stored on the host at `~/.ollama` and persist across rebuilds and container restarts.
 
+## MCP filesystem security model
+
+The MCP filesystem server is sandboxed to `workspace-data/` on the host (`/workspace-data` in container).
+
+- Agents can only operate on paths inside this sandbox.
+- Path traversal (`../`) is blocked server-side.
+- Set `MCP_FILESYSTEM_READ_ONLY=true` to enforce read-only mode.
+- `MCP_FILESYSTEM_MAX_READ_BYTES` limits single-file read size (default: 1 MiB).
+
+To let agents use a different writable root, change the `MCP_FILESYSTEM_ROOT` env var and corresponding volume mount in `docker-compose.yml` and `.lando.yml`.
+
 ---
 
 ## Why not `langchain/langgraph-api:latest-py3.12`?
@@ -246,6 +265,7 @@ That image requires `LANGSMITH_API_KEY` or `LANGGRAPH_CLOUD_LICENSE_KEY`. This r
 docker-compose.yml           Equivalent Docker Compose stack
 Dockerfile                   LangGraph dev server image
 langgraph.json               Graph ID → module path mappings
+mcp-filesystem/              Streamable HTTP MCP filesystem server
 
 frontend/                    Next.js + CopilotKit
   app/
@@ -259,13 +279,14 @@ django/                      Django AG-UI API
   agents/
     views.py                 AG-UI SSE endpoint + health + graph list
     urls.py
+  project_profiles.json      Startup project profile registry
   langgraph_api/
     settings.py
     asgi.py                  ASGI entry point (uvicorn)
   Dockerfile
 
 src/
-  basic_graph/graph.py       Ollama-backed single-node chat graph
+  basic_graph/graph.py       Ollama ReAct graph with MCP filesystem tools
   swarm_graph/graph.py       Multi-agent swarm graph
 
 scripts/

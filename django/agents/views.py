@@ -31,9 +31,23 @@ GRAPHS = {
 }
 
 GRAPH_DESCRIPTIONS = {
-    "basic": "Single-turn chat agent powered by Ollama.",
+    "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools.",
     "swarm_v1": "Multi-agent swarm: planner → coder → reviewer → writer.",
 }
+
+_project_profiles_file = Path(__file__).resolve().parent.parent / "project_profiles.json"
+
+_PROJECT_PROFILES_FALLBACK = [
+    {
+        "id": "workspace",
+        "name": "Workspace Sandbox",
+        "description": "General purpose profile for files under MCP sandbox root.",
+        "mcp_root": "/workspace-data",
+        "default_graph": "basic",
+        "allowed_graphs": ["basic", "swarm_v1"],
+        "tool_mode": "read_write",
+    }
+]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -64,6 +78,17 @@ def _parse_messages(raw_messages: list[dict]) -> list:
     return result
 
 
+def _load_project_profiles() -> list[dict]:
+    try:
+        if _project_profiles_file.exists():
+            data = json.loads(_project_profiles_file.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [p for p in data if isinstance(p, dict)]
+    except Exception:  # noqa: BLE001
+        pass
+    return _PROJECT_PROFILES_FALLBACK
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -83,6 +108,11 @@ def list_graphs(request):
             ]
         }
     )
+
+
+@require_GET
+def list_projects(request):
+    return JsonResponse({"projects": _load_project_profiles()})
 
 
 @csrf_exempt

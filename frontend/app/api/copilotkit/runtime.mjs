@@ -49,7 +49,68 @@ function createForwardRequest(req, targetUrl, method, body) {
   return new Request(targetUrl, init);
 }
 
-function resolveRootMethodRoute(reqUrl, envelope) {
+function readCookieValue(cookieHeader, name) {
+  if (!cookieHeader) {
+    return null;
+  }
+  const parts = cookieHeader.split(";");
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(`${name}=`)) {
+      return decodeURIComponent(trimmed.slice(name.length + 1));
+    }
+  }
+  return null;
+}
+
+function tryParseJson(value) {
+  if (!value) {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function injectProjectProfileContext(req, requestBody) {
+  if (!requestBody || typeof requestBody !== "object") {
+    return requestBody;
+  }
+
+  const messages = Array.isArray(requestBody.messages) ? requestBody.messages : [];
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const rawProfile = readCookieValue(cookieHeader, "copilot_project_profile");
+  const profile = tryParseJson(rawProfile);
+
+  if (!profile || !profile.id || !profile.name) {
+    return requestBody;
+  }
+
+  const marker = `[project-profile:${profile.id}]`;
+  const hasMarker = messages.some(
+    (m) => m?.role === "system" && typeof m?.content === "string" && m.content.includes(marker),
+  );
+  if (hasMarker) {
+    return requestBody;
+  }
+
+  const systemText = [
+    `${marker}`,
+    `Project profile: ${profile.name}`,
+    `Description: ${profile.description ?? ""}`,
+    `Filesystem root: ${profile.mcp_root ?? "/workspace-data"}`,
+    `Tool mode: ${profile.tool_mode ?? "read_only"}`,
+  ].join("\n");
+
+  return {
+    ...requestBody,
+    messages: [{ role: "system", content: systemText }, ...messages],
+  };
+}
+
+function resolveRootMethodRoute(req, envelope) {
   const method = envelope?.method;
   const params = envelope?.params ?? {};
 
@@ -67,7 +128,7 @@ function resolveRootMethodRoute(reqUrl, envelope) {
     return {
       targetPath: `${COPILOTKIT_BASE_PATH}/agent/${encodeURIComponent(params.agentId)}/run`,
       httpMethod: "POST",
-      body: envelope.body,
+      body: injectProjectProfileContext(req, envelope.body),
     };
   }
 
@@ -113,7 +174,7 @@ export async function handleCopilotKitRequest(req) {
   if (req.method === "POST" && url.pathname === COPILOTKIT_BASE_PATH) {
     try {
       const envelope = await req.clone().json();
-      const route = resolveRootMethodRoute(url, envelope);
+      const route = resolveRootMethodRoute(req, envelope);
 
       if (route?.error) {
         return jsonError(400, route.error);
