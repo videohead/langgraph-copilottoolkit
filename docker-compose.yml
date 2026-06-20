@@ -85,12 +85,14 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
+      LANGGRAPH_REGISTRY_FILE: /workspace/langgraph.json
       DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-dev-secret-key-please-change}"
       DEBUG: "true"
     volumes:
       # Hot-reload: mount live source over the container's copied files
       - ./django:/app
       - ./src:/app/src:ro
+      - ./:/workspace:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/api/health/ || exit 1"]
       interval: 15s

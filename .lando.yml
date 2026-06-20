@@ -61,6 +61,7 @@ services:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
         MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
+        LANGGRAPH_REGISTRY_FILE: /user/www/langgraph-copilottoolkit/langgraph.json
         PYTHONPATH: /app
         DEBUG: "true"
         DJANGO_SECRET_KEY: dev-secret-key-please-change-in-production

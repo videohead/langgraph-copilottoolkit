@@ -14,6 +14,7 @@ type ProjectProfile = {
   id: string;
   name: string;
   description?: string;
+  filesystem_roots?: string[];
   mcp_root?: string;
   default_graph?: string;
   allowed_graphs?: string[];
@@ -38,6 +39,7 @@ const FALLBACK_PROFILES: ProjectProfile[] = [
     id: "workspace",
     name: "Workspace Sandbox",
     description: "General-purpose profile for the MCP filesystem sandbox.",
+    filesystem_roots: ["/workspace-data"],
     mcp_root: "/workspace-data",
     default_graph: "basic",
     allowed_graphs: ["basic", "swarm_v1"],
@@ -50,6 +52,9 @@ export default function Home() {
   const [profiles, setProfiles] = useState<ProjectProfile[]>(FALLBACK_PROFILES);
   const [selectedProfile, setSelectedProfile] = useState(FALLBACK_PROFILES[0].id);
   const [selectedGraph, setSelectedGraph] = useState(FALLBACK_GRAPHS[0].id);
+  const [selectedFilesystemRoot, setSelectedFilesystemRoot] = useState(
+    FALLBACK_PROFILES[0].filesystem_roots?.[0] ?? FALLBACK_PROFILES[0].mcp_root ?? "/workspace-data",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +158,19 @@ export default function Home() {
     return filtered.length > 0 ? filtered : graphs;
   }, [graphs, activeProfile]);
 
+  const availableFilesystemRoots = useMemo(() => {
+    const roots = Array.isArray(activeProfile?.filesystem_roots)
+      ? activeProfile.filesystem_roots
+      : [];
+    if (roots.length > 0) {
+      return roots;
+    }
+    if (activeProfile?.mcp_root) {
+      return [activeProfile.mcp_root];
+    }
+    return ["/workspace-data"];
+  }, [activeProfile]);
+
   useEffect(() => {
     if (!visibleGraphs.some((g) => g.id === selectedGraph)) {
       setSelectedGraph(visibleGraphs[0]?.id ?? "basic");
@@ -163,17 +181,27 @@ export default function Home() {
     if (!activeProfile) {
       return;
     }
-    const cookieValue = encodeURIComponent(JSON.stringify(activeProfile));
+    const resolvedRoot = availableFilesystemRoots.includes(selectedFilesystemRoot)
+      ? selectedFilesystemRoot
+      : availableFilesystemRoots[0];
+    const cookiePayload = {
+      ...activeProfile,
+      selected_filesystem_root: resolvedRoot,
+    };
+    const cookieValue = encodeURIComponent(JSON.stringify(cookiePayload));
     document.cookie = `copilot_project_profile=${cookieValue}; path=/; max-age=2592000; samesite=lax`;
     if (activeProfile.default_graph && visibleGraphs.some((g) => g.id === activeProfile.default_graph)) {
       setSelectedGraph(activeProfile.default_graph);
     }
-  }, [activeProfile?.id]);
+    if (!availableFilesystemRoots.includes(selectedFilesystemRoot)) {
+      setSelectedFilesystemRoot(availableFilesystemRoots[0]);
+    }
+  }, [activeProfile?.id, selectedFilesystemRoot, availableFilesystemRoots, visibleGraphs]);
 
   const activeGraph = visibleGraphs.find((g) => g.id === selectedGraph) ?? visibleGraphs[0];
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100">
+    <main className="min-h-screen bg-gray-950 text-gray-100 lg:pr-[420px]">
       {/* Header */}
       <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between gap-4">
         <div>
@@ -208,6 +236,19 @@ export default function Home() {
               </option>
             ))}
           </select>
+
+          <span className="text-sm text-gray-400">Filesystem:</span>
+          <select
+            value={selectedFilesystemRoot}
+            onChange={(e) => setSelectedFilesystemRoot(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-md px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {availableFilesystemRoots.map((root) => (
+              <option key={root} value={root}>
+                {root}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
@@ -215,7 +256,7 @@ export default function Home() {
       <div className="px-6 py-3 bg-gray-900 border-b border-gray-800 text-sm text-gray-400 flex flex-col gap-1">
         <span>{activeGraph?.description}</span>
         <span>
-          Profile root: <strong className="text-gray-300">{activeProfile?.mcp_root ?? "/workspace-data"}</strong> ·
+          Active root: <strong className="text-gray-300">{selectedFilesystemRoot}</strong> ·
           Tool mode: <strong className="text-gray-300">{activeProfile?.tool_mode ?? "read_only"}</strong>
         </span>
       </div>

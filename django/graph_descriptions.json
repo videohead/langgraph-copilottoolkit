@@ -1,0 +1,4 @@
+{
+  "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools.",
+  "swarm_v1": "Multi-agent swarm chat graph with planner, coder, reviewer, and synthesizer stages, with MCP filesystem tool access."
+}

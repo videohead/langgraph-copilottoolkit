@@ -4,20 +4,84 @@ import { HttpAgent } from "@ag-ui/client";
 export const djangoUrl =
   process.env.DJANGO_INTERNAL_URL?.replace(/\/$/, "") ?? "http://django:8080";
 
-export const runtime = new CopilotRuntime({
-  agents: {
-    // CopilotKit internals may fall back to agentId "default".
-    // Map it to the basic graph so runtime sync never fails on that fallback.
-    default: new HttpAgent({ url: `${djangoUrl}/api/agents/basic/` }),
-    basic: new HttpAgent({ url: `${djangoUrl}/api/agents/basic/` }),
-    swarm_v1: new HttpAgent({ url: `${djangoUrl}/api/agents/swarm_v1/` }),
-  },
-});
+const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1"];
+const RUNTIME_CACHE_TTL_MS = Number(process.env.COPILOTKIT_RUNTIME_CACHE_MS ?? 5000);
+const DISCOVERY_TIMEOUT_MS = Number(process.env.COPILOTKIT_DISCOVERY_TIMEOUT_MS ?? 800);
 
-export const copilotkitHandler = createCopilotRuntimeHandler({
-  runtime,
-  basePath: "/api/copilotkit",
-});
+let _cached = {
+  expiresAt: 0,
+  handler: null,
+  graphIds: [],
+};
+
+function normalizeGraphIds(payload) {
+  if (!payload || !Array.isArray(payload.graphs)) {
+    return [];
+  }
+  return payload.graphs
+    .map((g) => (g && typeof g.id === "string" ? g.id.trim() : ""))
+    .filter((id) => id.length > 0);
+}
+
+async function loadGraphIdsFromDjango() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${djangoUrl}/api/graphs/`, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return FALLBACK_GRAPH_IDS;
+    }
+    const payload = await response.json();
+    const dynamicIds = normalizeGraphIds(payload);
+    return dynamicIds.length > 0 ? dynamicIds : FALLBACK_GRAPH_IDS;
+  } catch {
+    return FALLBACK_GRAPH_IDS;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildRuntimeAndHandler(graphIds) {
+  const ids = graphIds.length > 0 ? graphIds : FALLBACK_GRAPH_IDS;
+  const defaultGraphId = ids.includes("basic") ? "basic" : ids[0];
+
+  const agents = {
+    default: new HttpAgent({ url: `${djangoUrl}/api/agents/${encodeURIComponent(defaultGraphId)}/` }),
+  };
+
+  for (const graphId of ids) {
+    agents[graphId] = new HttpAgent({
+      url: `${djangoUrl}/api/agents/${encodeURIComponent(graphId)}/`,
+    });
+  }
+
+  const runtime = new CopilotRuntime({ agents });
+  const handler = createCopilotRuntimeHandler({
+    runtime,
+    basePath: "/api/copilotkit",
+  });
+  return { handler, graphIds: ids };
+}
+
+async function getCopilotkitHandler() {
+  const now = Date.now();
+  if (_cached.handler && now < _cached.expiresAt) {
+    return _cached.handler;
+  }
+
+  const graphIds = await loadGraphIdsFromDjango();
+  const built = buildRuntimeAndHandler(graphIds);
+  _cached = {
+    expiresAt: now + RUNTIME_CACHE_TTL_MS,
+    handler: built.handler,
+    graphIds: built.graphIds,
+  };
+  return _cached.handler;
+}
 
 const COPILOTKIT_BASE_PATH = "/api/copilotkit";
 
@@ -88,6 +152,14 @@ function injectProjectProfileContext(req, requestBody) {
     return requestBody;
   }
 
+  const filesystemRoots = Array.isArray(profile.filesystem_roots)
+    ? profile.filesystem_roots.filter((root) => typeof root === "string" && root.trim())
+    : [];
+  const selectedRoot =
+    typeof profile.selected_filesystem_root === "string" && profile.selected_filesystem_root.trim()
+      ? profile.selected_filesystem_root
+      : (filesystemRoots[0] ?? profile.mcp_root ?? "/workspace-data");
+
   const marker = `[project-profile:${profile.id}]`;
   const hasMarker = messages.some(
     (m) => m?.role === "system" && typeof m?.content === "string" && m.content.includes(marker),
@@ -100,7 +172,8 @@ function injectProjectProfileContext(req, requestBody) {
     `${marker}`,
     `Project profile: ${profile.name}`,
     `Description: ${profile.description ?? ""}`,
-    `Filesystem root: ${profile.mcp_root ?? "/workspace-data"}`,
+    `Filesystem root: ${selectedRoot}`,
+    `Allowed roots: ${filesystemRoots.length > 0 ? filesystemRoots.join(", ") : selectedRoot}`,
     `Tool mode: ${profile.tool_mode ?? "read_only"}`,
   ].join("\n");
 
@@ -170,6 +243,7 @@ function resolveRootMethodRoute(req, envelope) {
 
 export async function handleCopilotKitRequest(req) {
   const url = new URL(req.url);
+  const copilotkitHandler = await getCopilotkitHandler();
 
   if (req.method === "POST" && url.pathname === COPILOTKIT_BASE_PATH) {
     try {

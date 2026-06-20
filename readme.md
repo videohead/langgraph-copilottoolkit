@@ -54,7 +54,7 @@ http://langgraph.lndo.site
 
 The CopilotKit chat sidebar opens automatically. Use the **Agent** dropdown in the header to switch between graphs.
 
-Use the **Profile** dropdown to switch project contexts (filesystem root, tool mode, and allowed graphs) without restarting services.
+Use the **Profile** dropdown to switch project contexts (allowed graphs + tool mode), and the **Filesystem** dropdown to pick the active filesystem root for this chat run.
 
 ### Frontend import note
 
@@ -98,7 +98,154 @@ lando rebuild -y
 | Graph ID | Description |
 |----------|-------------|
 | `basic` | ReAct chat agent backed by Ollama with MCP filesystem tools |
-| `swarm_v1` | Multi-agent pipeline: planner → coder → reviewer → writer |
+| `swarm_v1` | Multi-agent chat pipeline with MCP filesystem tool access |
+
+---
+
+## Dynamic runtime agent registration (Django-driven)
+
+The frontend CopilotKit runtime now discovers registered agents dynamically from Django.
+
+- Source of truth for chat-ready agent IDs is `GET /api/graphs/` on Django.
+- Django now builds `GET /api/graphs/` dynamically from `langgraph.json` (plus dynamic graph imports).
+- Next.js runtime fetches this list and builds `HttpAgent` registrations automatically.
+- You no longer need to edit frontend runtime agent maps when adding a new graph ID.
+- Runtime keeps a short in-memory cache (`COPILOTKIT_RUNTIME_CACHE_MS`, default `5000`) to avoid rebuilding on every request.
+- Runtime discovery uses a short timeout (`COPILOTKIT_DISCOVERY_TIMEOUT_MS`, default `800`) and falls back to baseline agents if Django is temporarily unavailable.
+
+Operationally, graph onboarding is now declarative in `langgraph.json` + graph source files, with Django and frontend runtime following automatically.
+
+In mixed local runtimes, Django auto-discovers `langgraph.json` from known container paths (Compose and Lando layouts).
+
+---
+
+## Django graph operations guide
+
+This section is the detailed workflow for adding, exposing, and validating new graphs through Django.
+
+### 1. Add or update graph implementation in `src/`
+
+Create a graph module under `src/` that exports a compiled `graph` object.
+
+Example layout:
+
+```text
+src/
+  my_graph/
+    __init__.py
+    graph.py
+```
+
+### 2. Register graph in `langgraph.json` (declarative source of truth)
+
+Add the graph ID to the `graphs` object so appserver tooling recognizes it.
+
+```json
+{
+  "graphs": {
+    "basic": "./src/basic_graph/graph.py:graph",
+    "swarm_v1": "./src/swarm_graph/graph.py:graph",
+    "my_graph": "./src/my_graph/graph.py:graph"
+  }
+}
+```
+
+### 3. Add graph description metadata (optional but recommended)
+
+Add a friendly description in `django/graph_descriptions.json`:
+
+```json
+{
+  "my_graph": "Purpose-built graph for <your workflow>."
+}
+```
+
+If omitted, Django returns a generic description.
+
+### 4. Ensure profile access to the graph
+
+Update `django/project_profiles.json` and include `my_graph` in one or more profile `allowed_graphs` arrays.
+
+### 5. (Optional) Configure multiple filesystem targets per profile
+
+Each profile can declare multiple filesystem locations:
+
+```json
+{
+  "id": "webapp-qa",
+  "filesystem_roots": [
+    "/workspace-data/webapps/site-a",
+    "/workspace-data/webapps/site-b"
+  ],
+  "default_graph": "swarm_v1",
+  "allowed_graphs": ["swarm_v1", "my_graph"],
+  "tool_mode": "read_only"
+}
+```
+
+The frontend lets you pick one active root; that active root is sent to the runtime as system context.
+
+Once this is done:
+
+- `GET /api/graphs/` returns the new ID.
+- Next.js runtime will discover and register it automatically.
+- It becomes selectable in the frontend graph selector without editing runtime code.
+
+### 6. Validate from Django container
+
+Use Django container tooling:
+
+```bash
+lando django check
+lando ssh -s django -c "curl -s http://localhost:8080/api/graphs/"
+lando ssh -s django -c "curl -s http://localhost:8080/api/projects/"
+```
+
+### 7. Validate from frontend runtime
+
+From the frontend container:
+
+```bash
+lando ssh -s frontend -c "curl -s http://localhost:3000/api/copilotkit/info"
+```
+
+Check that `agents` includes your newly added graph ID.
+
+### 8. Rebuild/restart rules
+
+- If you changed only Python source under mounted volumes: restart services if needed for clean state.
+- If you changed dependencies (`requirements.txt`, `django/requirements.txt`, frontend deps): run `lando rebuild -y`.
+
+---
+
+## Django API endpoints used for dynamic registration
+
+- `GET /api/health/`: health status and known graph IDs.
+- `GET /api/graphs/`: authoritative graph IDs for frontend runtime dynamic registration.
+- `GET /api/projects/`: project profile definitions (filesystem root, allowed graphs, tool mode).
+- `POST /api/agents/<graph_id>/`: AG-UI streaming run endpoint for the selected graph.
+
+---
+
+## Directing agents across graphs and filesystem locations
+
+Use this simple routing model:
+
+1. Pick a **Profile** in the UI (defines allowed graphs + available filesystem roots).
+2. Pick an **Agent** (graph) from profile-allowed options.
+3. Pick an explicit **Filesystem** root for this run.
+
+This gives clear intent per conversation turn:
+
+- Which graph behavior is used.
+- Which local filesystem location the model should focus on.
+- Whether the run is read-only or read-write (`tool_mode`).
+
+Recommended convention:
+
+- Keep one profile per project or environment (for example `site-a-dev`, `site-a-qa`, `site-b-perf`).
+- Use narrow `allowed_graphs` per profile.
+- Use read-only `tool_mode` for testing/review flows, then switch to read-write profiles only when you intend to modify files.
 
 ---
 
@@ -270,15 +417,17 @@ mcp-filesystem/              Streamable HTTP MCP filesystem server
 frontend/                    Next.js + CopilotKit
   app/
     layout.tsx               CopilotKit provider (points at /api/copilotkit)
-    page.tsx                 Chat UI with graph selector
+    page.tsx                 Chat UI with graph + profile + filesystem selectors
     api/copilotkit/
-      [...path]/route.ts     CopilotKit Runtime — proxies to Django
+      runtime.mjs            CopilotKit Runtime — dynamic agent registration from Django
+      [...path]/route.ts     CopilotKit Runtime route — proxies to Django
   Dockerfile
 
 django/                      Django AG-UI API
   agents/
     views.py                 AG-UI SSE endpoint + health + graph list
     urls.py
+  graph_descriptions.json    Optional graph description registry
   project_profiles.json      Startup project profile registry
   langgraph_api/
     settings.py
