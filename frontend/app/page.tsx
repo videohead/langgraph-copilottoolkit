@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CopilotChatConfigurationProvider } from "@copilotkit/react-core/v2/headless";
 import { CopilotSidebar } from "@copilotkit/react-ui";
@@ -211,6 +212,13 @@ export default function Home() {
 
         {/* Profile and graph selectors */}
         <div className="flex items-center gap-3 flex-wrap justify-end">
+          <Link
+            href="/services"
+            className="bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded-md px-3 py-1.5 text-sm text-white"
+          >
+            Services Dashboard
+          </Link>
+
           <span className="text-sm text-gray-400">Profile:</span>
           <select
             value={selectedProfile}

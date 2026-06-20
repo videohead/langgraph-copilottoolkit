@@ -138,7 +138,15 @@ function tryParseJson(value) {
   }
 }
 
-function injectProjectProfileContext(req, requestBody) {
+function createProjectProfileSystemMessage(profileId, content) {
+  return {
+    id: `project-profile:${profileId}`,
+    role: "system",
+    content,
+  };
+}
+
+export function injectProjectProfileContext(req, requestBody) {
   if (!requestBody || typeof requestBody !== "object") {
     return requestBody;
   }
@@ -179,7 +187,7 @@ function injectProjectProfileContext(req, requestBody) {
 
   return {
     ...requestBody,
-    messages: [{ role: "system", content: systemText }, ...messages],
+    messages: [createProjectProfileSystemMessage(profile.id, systemText), ...messages],
   };
 }
 

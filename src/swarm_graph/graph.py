@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import time
 from typing import Annotated
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
@@ -31,6 +32,10 @@ _model = ChatOllama(
     base_url=os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434"),
     model=os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b"),
 )
+
+_TOOL_AGENT = None
+_LAST_MCP_ATTEMPT = 0.0
+_MCP_RETRY_SECONDS = float(os.environ.get("MCP_TOOL_RETRY_SECONDS", "10"))
 
 
 def _run_async(coro):
@@ -68,8 +73,24 @@ async def _load_mcp_tools():
         return []
 
 
-_mcp_tools = _run_async(_load_mcp_tools())
-_tool_agent = create_react_agent(_model, _mcp_tools) if _mcp_tools else None
+def _get_tool_agent():
+    global _TOOL_AGENT, _LAST_MCP_ATTEMPT
+
+    if _TOOL_AGENT is not None:
+        return _TOOL_AGENT
+
+    now = time.monotonic()
+    if now - _LAST_MCP_ATTEMPT < _MCP_RETRY_SECONDS:
+        return None
+
+    _LAST_MCP_ATTEMPT = now
+    tools = _run_async(_load_mcp_tools())
+    if tools:
+        _TOOL_AGENT = create_react_agent(_model, tools)
+        _LOG.info("Loaded %d MCP tools for swarm graph", len(tools))
+        return _TOOL_AGENT
+
+    return None
 
 
 def _last_user_text(messages: list[AnyMessage]) -> str:
@@ -95,8 +116,9 @@ def _chat_context(messages: list[AnyMessage], limit: int = 8) -> str:
 
 
 def _invoke_swarm_agent(system_prompt: str, user_prompt: str):
-    if _tool_agent is not None:
-        result = _tool_agent.invoke(
+    tool_agent = _get_tool_agent()
+    if tool_agent is not None:
+        result = tool_agent.invoke(
             {
                 "messages": [
                     SystemMessage(content=system_prompt),

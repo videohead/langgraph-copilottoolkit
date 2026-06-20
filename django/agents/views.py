@@ -12,6 +12,7 @@ import sys
 import uuid
 import importlib.util
 import os
+import logging
 from pathlib import Path
 
 from django.http import JsonResponse, StreamingHttpResponse
@@ -59,6 +60,8 @@ _GRAPH_CACHE = {
     "file": None,
     "graphs": {},
 }
+
+_LOG = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -226,6 +229,64 @@ def _load_project_profiles() -> list[dict]:
     return [p for p in normalized if p.get("id")]
 
 
+def _graph_has_mcp_tools(graph_obj: object) -> bool | None:
+    module_name = getattr(graph_obj, "__module__", None)
+    if not module_name:
+        return None
+
+    module = sys.modules.get(module_name)
+    if module is None:
+        return None
+
+    for attr in ("_TOOL_AGENT", "_tool_agent"):
+        if hasattr(module, attr):
+            return getattr(module, attr) is not None
+
+    if hasattr(module, "_mcp_tools"):
+        tools = getattr(module, "_mcp_tools")
+        if isinstance(tools, list):
+            return len(tools) > 0
+
+    return None
+
+
+def _mcp_attachment_snapshot(graphs: dict[str, object]) -> dict[str, str]:
+    snapshot: dict[str, str] = {}
+    for graph_id, graph_obj in graphs.items():
+        status = _graph_has_mcp_tools(graph_obj)
+        if status is True:
+            snapshot[graph_id] = "attached"
+        elif status is False:
+            snapshot[graph_id] = "detached"
+        else:
+            snapshot[graph_id] = "unknown"
+    return snapshot
+
+
+def _content_to_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                # Only forward visible text parts; suppress tool call metadata payloads.
+                text = item.get("text")
+                if isinstance(text, str) and text:
+                    parts.append(text)
+            elif isinstance(item, str):
+                if item:
+                    parts.append(item)
+        return "".join(parts)
+    if isinstance(content, dict):
+        # Guard against leaking tool-call objects as assistant text.
+        if "name" in content and ("arguments" in content or "args" in content):
+            return ""
+        text = content.get("text")
+        return text if isinstance(text, str) else ""
+    return str(content)
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -280,6 +341,11 @@ def run_agent(request, graph_name: str):
         return JsonResponse({"error": "No messages provided"}, status=400)
 
     graph = graphs[graph_name]
+    _LOG.info(
+        "run_agent start graph=%s mcp=%s",
+        graph_name,
+        json.dumps(_mcp_attachment_snapshot(graphs), sort_keys=True),
+    )
 
     def stream_events():
         yield _sse({"type": "RUN_STARTED", "threadId": thread_id, "runId": run_id})
@@ -294,7 +360,7 @@ def run_agent(request, graph_name: str):
                 {"messages": lc_messages},
                 stream_mode="messages",
             ):
-                if not isinstance(chunk, AIMessageChunk):
+                if not isinstance(chunk, (AIMessageChunk, AIMessage)):
                     continue
                 if not chunk.content:
                     continue
@@ -318,12 +384,9 @@ def run_agent(request, graph_name: str):
                         }
                     )
 
-                content = chunk.content
-                if isinstance(content, list):
-                    content = "".join(
-                        c.get("text", "") if isinstance(c, dict) else str(c)
-                        for c in content
-                    )
+                content = _content_to_text(chunk.content)
+                if not content:
+                    continue
 
                 yield _sse(
                     {

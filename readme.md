@@ -1,6 +1,17 @@
 # LangGraph + CopilotKit (Lando)
 
-A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React frontend — all orchestrated by Lando with no cloud licensing required.
+A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React/NextJS frontend — all orchestrated by Lando with no cloud licensing required. Uses MCP filesystem for read/write capabilities, and is configurable via Django and file editing. Users can configure multiple graphs, multiple agents (and agentic swarms), and can view graph shape via Python and Mermaid chart.
+Any Ollama capable model can be loaded on startup to respond to agents, base configured with Qwen for constrained model size/functionality tradeoffs.
+Services are Dockerfile configured and exposed via Lando as a multi-endpoint capable system (I prefer using names for services instead of port names). You should easily be able to strip out the Lando toolset and just run this in Docker if you want.
+
+## Why?
+
+I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial and depended on Anthropic or OpenAI. This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to experiment with langgraph and don't want to worry about exceeding token costs.
+I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool or app without any costs other than electricity and local compute.
+
+## How?
+
+I built this in VSCode with a 
 
 ## Architecture
 
@@ -93,7 +104,7 @@ lando rebuild -y
 
 ---
 
-## Available graphs
+## Currently Available graphs
 
 | Graph ID | Description |
 |----------|-------------|
@@ -104,12 +115,12 @@ lando rebuild -y
 
 ## Dynamic runtime agent registration (Django-driven)
 
-The frontend CopilotKit runtime now discovers registered agents dynamically from Django.
+The frontend CopilotKit runtime discovers registered agents dynamically from Django.
 
 - Source of truth for chat-ready agent IDs is `GET /api/graphs/` on Django.
 - Django now builds `GET /api/graphs/` dynamically from `langgraph.json` (plus dynamic graph imports).
 - Next.js runtime fetches this list and builds `HttpAgent` registrations automatically.
-- You no longer need to edit frontend runtime agent maps when adding a new graph ID.
+- You do not need to edit frontend runtime agent maps when adding a new graph ID.
 - Runtime keeps a short in-memory cache (`COPILOTKIT_RUNTIME_CACHE_MS`, default `5000`) to avoid rebuilding on every request.
 - Runtime discovery uses a short timeout (`COPILOTKIT_DISCOVERY_TIMEOUT_MS`, default `800`) and falls back to baseline agents if Django is temporarily unavailable.
 

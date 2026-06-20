@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { handleCopilotKitRequest } from "../app/api/copilotkit/runtime.mjs";
+import {
+  handleCopilotKitRequest,
+  injectProjectProfileContext,
+} from "../app/api/copilotkit/runtime.mjs";
 
 async function readJson(response) {
   const text = await response.text();
@@ -62,4 +65,22 @@ test("POST /api/copilotkit agent/run maps to runtime route (not Not found)", asy
 
   const text = await response.text();
   assert.ok(!text.includes('"error":"Not found"'));
+});
+
+test("project profile injection adds a schema-compatible system message id", () => {
+  const request = new Request("http://localhost/api/copilotkit", {
+    headers: {
+      cookie:
+        "copilot_project_profile=%7B%22id%22%3A%22demo%22%2C%22name%22%3A%22Demo%20Project%22%2C%22filesystem_roots%22%3A%5B%22%2Fworkspace-data%22%5D%7D",
+    },
+  });
+
+  const payload = injectProjectProfileContext(request, {
+    messages: [{ id: "user-1", role: "user", content: "Hello" }],
+  });
+
+  assert.equal(payload.messages[0].id, "project-profile:demo");
+  assert.equal(payload.messages[0].role, "system");
+  assert.match(payload.messages[0].content, /\[project-profile:demo\]/);
+  assert.equal(payload.messages[1].id, "user-1");
 });
