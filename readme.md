@@ -16,17 +16,15 @@ I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) i
 I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool, app, or methodology without any costs other than electricity and local compute.
 
 ## What is LangGraph?
-LangGraph is an open-source framework for building and managing complex AI workflows using graph-based structures, enabling multi-agent orchestration and stateful interactions.
-What is LangGraph?
-LangGraph is a library within the LangChain ecosystem designed to orchestrate multiple Large Language Model (LLM) agents or chains in a structured, flexible, and scalable manner. Unlike traditional linear pipelines, LangGraph represents workflows as graphs, where nodes correspond to tasks or agents and edges define the flow of execution. This graph-based approach allows developers to create cyclical, branching, and parallel workflows, making it ideal for complex, decision-driven applications.
+LangGraph is an open-source framework (LangGraph is a library within the LangChain ecosystem) for building and managing complex AI workflows using graph-based structures, enabling multi-agent orchestration and stateful interactions. It is designed to orchestrate multiple Large Language Model (LLM) agents or chains in a structured, flexible, and scalable manner. Unlike traditional linear pipelines, LangGraph represents workflows as graphs, where nodes correspond to tasks or agents and edges define the flow of execution. This graph-based approach allows developers to create cyclical, branching, and parallel workflows, making it ideal for complex, decision-driven applications.
 LangGraph extends LangChain by enabling stateful, multi-actor applications, where each agent can maintain context, interact with other agents, and update the workflow dynamically. It is MIT-licensed and open-source, allowing free use and integration into production systems
 
 ## What are LangGraph's Advantages over single-agent workflows?
-Flexible and Scalable: Supports complex, multi-step workflows with branching and loops.
-Stateful Interactions: Maintains context across multiple agents and sessions.
-Debugging and Monitoring: LangGraph can help to inspect agent decisions and optimize workflows.
-Multi-Agent Coordination: Enables orchestration of multiple LLMs or tools in a single workflow.
 In essence, LangGraph transforms AI workflows into graph-based, stateful, and orchestrated systems, making it easier to build robust, scalable, and intelligent applications that go beyond simple linear pipelines.
+Graph-based: Defined by a human readable shape
+Stateful: Travel forwards and backwards in the decision tree instead of being locked into "set and forget". Similar to using git instead of SCP.
+Orchestrated: Place guardrails and decision frameworks into your graph, include HITL (human in the loop) and HTIM (human in the middle). Orchestrate one swarm, or swarms of swarms - no limits.
+Don't be a HITW (Human in the way!)
 
 ## Architecture
 
