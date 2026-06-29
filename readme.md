@@ -24,7 +24,7 @@ LangGraph extends LangChain by enabling stateful, multi-actor applications, wher
 ## What are LangGraph's Advantages over single-agent workflows?
 Flexible and Scalable: Supports complex, multi-step workflows with branching and loops.
 Stateful Interactions: Maintains context across multiple agents and sessions.
-Debugging and Monitoring: Tools like LangSmith allow developers to inspect agent decisions and optimize workflows.
+Debugging and Monitoring: LangGraph can help to inspect agent decisions and optimize workflows.
 Multi-Agent Coordination: Enables orchestration of multiple LLMs or tools in a single workflow.
 In essence, LangGraph transforms AI workflows into graph-based, stateful, and orchestrated systems, making it easier to build robust, scalable, and intelligent applications that go beyond simple linear pipelines.
 
