@@ -39,6 +39,10 @@ const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1"];
 const GRAPH_CHART_FALLBACK = "swarm-chart.png";
 const REQUEST_TIMEOUT_MS = Number(process.env.SERVICE_STATUS_TIMEOUT_MS ?? 1500);
 
+function joinUrl(base, path) {
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 function normalizeBaseUrls(candidates) {
   const seen = new Set();
   const urls = [];
@@ -292,9 +296,10 @@ export async function buildServicesDashboardData(options = {}) {
       id: "mcp-filesystem",
       name: "MCP Filesystem",
       group: "additional",
-      location: PUBLIC_LOCATIONS.mcpFilesystem,
+      location: joinUrl(PUBLIC_LOCATIONS.mcpFilesystem, "/health"),
+      detail: `MCP transport: ${joinUrl(PUBLIC_LOCATIONS.mcpFilesystem, "/mcp")}`,
       startup: await probeUrls(
-        normalizeBaseUrls(DEFAULT_ENDPOINTS.mcpFilesystem).map((base) => `${base}/mcp`),
+        normalizeBaseUrls(DEFAULT_ENDPOINTS.mcpFilesystem).map((base) => `${base}/health`),
         fetchImpl,
         timeoutMs,
       ),

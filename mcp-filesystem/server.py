@@ -3,6 +3,8 @@ import shutil
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 ROOT = Path(os.environ.get("MCP_FILESYSTEM_ROOT", "/workspace-data")).resolve()
 READ_ONLY = os.environ.get("MCP_FILESYSTEM_READ_ONLY", "false").lower() in {"1", "true", "yes"}
@@ -18,6 +20,26 @@ mcp = FastMCP(
     port=8765,
     streamable_http_path="/mcp",
 )
+
+
+@mcp.custom_route("/", methods=["GET"])
+async def root_status(_: Request) -> JSONResponse:
+    return JSONResponse(
+        {
+            "name": "filesystem",
+            "status": "ok",
+            "transport": "streamable-http",
+            "mcp_endpoint": "/mcp",
+            "health_endpoint": "/health",
+            "root": str(ROOT),
+            "read_only": READ_ONLY,
+        }
+    )
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(_: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
 
 
 def _resolve_path(raw_path: str) -> Path:

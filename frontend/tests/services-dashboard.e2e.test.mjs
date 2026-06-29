@@ -40,7 +40,7 @@ test("services dashboard reports startup status for core and additional services
     { match: /\/api\/health\/$/, status: 200, body: { status: "ok" } },
     { match: /\/api\/tags$/, status: 200, body: { models: [] } },
     { match: "http://appserver:8000", status: 200, body: "ok" },
-    { match: /\/mcp$/, status: 200, body: { name: "filesystem" } },
+    { match: /\/health$/, status: 200, body: { status: "ok" } },
     { match: /\/swarm-chart\.png$/, status: 200, body: "png" },
     {
       match: /\/api\/graphs\/$/,
@@ -77,6 +77,11 @@ test("services dashboard reports startup status for core and additional services
   const charts = payload.services.find((service) => service.id === "charts");
   assert.equal(charts?.startup.status, "up");
 
+  const mcpFilesystem = payload.services.find((service) => service.id === "mcp-filesystem");
+  assert.equal(mcpFilesystem?.location, "http://mcpfs.langgraph.lndo.site/health");
+  assert.equal(mcpFilesystem?.startup.status, "up");
+  assert.equal(mcpFilesystem?.detail, "MCP transport: http://mcpfs.langgraph.lndo.site/mcp");
+
   const basicChart = payload.graphCharts.find((chart) => chart.graphId === "basic");
   assert.equal(basicChart?.available, true);
   assert.ok(basicChart?.pngUrl?.endsWith("/swarm-chart.png"));
@@ -88,7 +93,7 @@ test("services dashboard handles chart service outage", async () => {
     { match: /\/api\/health\/$/, status: 200, body: { status: "ok" } },
     { match: /\/api\/tags$/, status: 200, body: { models: [] } },
     { match: "http://appserver:8000", status: 200, body: "ok" },
-    { match: /\/mcp$/, status: 200, body: { name: "filesystem" } },
+    { match: /\/health$/, status: 200, body: { status: "ok" } },
     { match: /\/swarm-chart\.png$/, error: new Error("connect ECONNREFUSED") },
     {
       match: /\/api\/graphs\/$/,
