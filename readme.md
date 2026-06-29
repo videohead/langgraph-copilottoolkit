@@ -6,10 +6,14 @@ Any Ollama capable model can be loaded on startup to respond to agents, base con
 Services are Dockerfile configured and exposed via Lando as a multi-endpoint capable system (I prefer using names for services instead of port names). You should easily be able to strip out the Lando toolset and just run this in Docker if you want.
 Agents are enabled to read-write to the filesystem for advanced coding toolchains.
 
+## What can this project do for you?
+
+If you don't want to pay for an LLM API and have GPU to spare, and you're interested in orchestrating multiple agents using locally running LLMs, but you want a chatty web interface to "talk" to your agent swarms and not a boring IDE . . . (and you want to use a graph-defined state machine system approach with human in the loop) this could be a great package for you.
+
 ## Why?
 
-I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial and depended on Anthropic or OpenAI API services. This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to experiment with langgraph and don't want to worry about exceeding token costs.
-I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool or app without any costs other than electricity and local compute.
+I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial implementations and depended on third party API services. (This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to work with langgraph and don't want to worry about exceeding token costs.)
+I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool, app, or methodology without any costs other than electricity and local compute.
 
 ## What is LangGraph?
 LangGraph is an open-source framework for building and managing complex AI workflows using graph-based structures, enabling multi-agent orchestration and stateful interactions.
