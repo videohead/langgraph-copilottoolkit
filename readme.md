@@ -1,13 +1,28 @@
 # LangGraph + CopilotKit (Lando)
 
-A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React/NextJS frontend — all orchestrated by Lando with no cloud licensing required. Uses MCP filesystem for read/write capabilities, and is configurable via Django and file editing. Users can configure multiple graphs, multiple agents (and agentic swarms), and can view graph shape via Python and Mermaid chart.
+A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React/NextJS frontend — all orchestrated by Lando with no cloud licensing required. Uses MCP filesystem for read/write capabilities, and is configurable via Django and file editing. 
+Users can configure and select multiple graphs, multiple agents (and agentic swarms), and can view graph shape via Python and Mermaid chart.
 Any Ollama capable model can be loaded on startup to respond to agents, base configured with Qwen for constrained model size/functionality tradeoffs.
 Services are Dockerfile configured and exposed via Lando as a multi-endpoint capable system (I prefer using names for services instead of port names). You should easily be able to strip out the Lando toolset and just run this in Docker if you want.
+Agents are enabled to read-write to the filesystem for advanced coding toolchains.
 
 ## Why?
 
-I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial and depended on Anthropic or OpenAI. This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to experiment with langgraph and don't want to worry about exceeding token costs.
+I wanted to be able to spin up a variety of Ollama-powered multiagent swarm(s) in my home lab that did not consume tokens from external services (no cost model). The existing langgraph/langchain examples were tightly constrained to commercial and depended on Anthropic or OpenAI API services. This is great if you work in FAANG or someone else is paying the bills, but not very useful if you want to experiment with langgraph and don't want to worry about exceeding token costs.
 I wanted something flexible and chatty, and potentially something that I could leave running for a while to build a tool or app without any costs other than electricity and local compute.
+
+## What is LangGraph?
+LangGraph is an open-source framework for building and managing complex AI workflows using graph-based structures, enabling multi-agent orchestration and stateful interactions.
+What is LangGraph?
+LangGraph is a library within the LangChain ecosystem designed to orchestrate multiple Large Language Model (LLM) agents or chains in a structured, flexible, and scalable manner. Unlike traditional linear pipelines, LangGraph represents workflows as graphs, where nodes correspond to tasks or agents and edges define the flow of execution. This graph-based approach allows developers to create cyclical, branching, and parallel workflows, making it ideal for complex, decision-driven applications.
+LangGraph extends LangChain by enabling stateful, multi-actor applications, where each agent can maintain context, interact with other agents, and update the workflow dynamically. It is MIT-licensed and open-source, allowing free use and integration into production systems
+
+## What are LangGraph's Advantages over single-agent workflows?
+Flexible and Scalable: Supports complex, multi-step workflows with branching and loops.
+Stateful Interactions: Maintains context across multiple agents and sessions.
+Debugging and Monitoring: Tools like LangSmith allow developers to inspect agent decisions and optimize workflows.
+Multi-Agent Coordination: Enables orchestration of multiple LLMs or tools in a single workflow.
+In essence, LangGraph transforms AI workflows into graph-based, stateful, and orchestrated systems, making it easier to build robust, scalable, and intelligent applications that go beyond simple linear pipelines.
 
 ## Architecture
 
