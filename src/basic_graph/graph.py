@@ -4,9 +4,11 @@ import logging
 import time
 import json
 import re
+from pathlib import PurePosixPath
 from typing import Annotated
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
@@ -32,6 +34,7 @@ _model = ChatOllama(
 
 _TOOL_AGENT = None
 _MCP_TOOLS = []
+_TOOL_AGENTS_BY_POLICY = {}
 _LAST_MCP_ATTEMPT = 0.0
 _MCP_RETRY_SECONDS = float(os.environ.get("MCP_TOOL_RETRY_SECONDS", "10"))
 
@@ -212,6 +215,29 @@ def _normalize_generated_code(code: str) -> str:
     return code
 
 
+def _humanize_tool_payload_text(text: str) -> str | None:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    if "path" in payload and "bytes_written" in payload:
+        return f"Wrote file to {payload['path']} ({payload['bytes_written']} bytes)."
+    if "path" in payload and "bytes_appended" in payload:
+        return f"Appended to {payload['path']} ({payload['bytes_appended']} bytes)."
+    if "deleted" in payload:
+        return f"Deleted {payload['deleted']}."
+    if "from" in payload and "to" in payload:
+        return f"Moved {payload['from']} to {payload['to']}."
+    if "path" in payload:
+        return f"Updated {payload['path']}."
+
+    return None
+
+
 def _find_tool(name: str):
     for tool in _MCP_TOOLS:
         if getattr(tool, "name", None) == name:
@@ -219,8 +245,15 @@ def _find_tool(name: str):
     return None
 
 
-def _invoke_tool(tool_name: str, tool_args: dict):
-    tool = _find_tool(tool_name)
+def _invoke_tool(tool_name: str, tool_args: dict, tools: list | None = None):
+    search_tools = tools if tools is not None else _MCP_TOOLS
+    tool_obj = None
+    for candidate in search_tools:
+        if getattr(candidate, "name", None) == tool_name:
+            tool_obj = candidate
+            break
+
+    tool = tool_obj
     if tool is None:
         raise ValueError(f"Tool '{tool_name}' is not available")
     if hasattr(tool, "ainvoke"):
@@ -228,9 +261,9 @@ def _invoke_tool(tool_name: str, tool_args: dict):
     return tool.invoke(tool_args)
 
 
-def _verify_text_file_exists(path: str) -> bool:
+def _verify_text_file_exists(path: str, tools: list | None = None) -> bool:
     try:
-        _invoke_tool("read_text_file", {"path": path})
+        _invoke_tool("read_text_file", {"path": path}, tools)
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -257,11 +290,208 @@ def _get_tool_agent():
     return None
 
 
+def _normalize_root_path(path: str) -> str:
+    raw = (path or "").strip()
+    if not raw:
+        return "/workspace-data"
+    if not raw.startswith("/"):
+        raw = f"/workspace-data/{raw.lstrip('/')}"
+    normalized = str(PurePosixPath(raw))
+    if not normalized.startswith("/workspace-data"):
+        return "/workspace-data"
+    return normalized.rstrip("/") or "/workspace-data"
+
+
+def _to_absolute_tool_path(path: str, mcp_root: str = "/workspace-data") -> str:
+    raw = (path or "").strip()
+    if raw in {"", "."}:
+        return mcp_root
+    if raw.startswith("/"):
+        return str(PurePosixPath(raw))
+    return str(PurePosixPath(f"{mcp_root.rstrip('/')}/{raw}"))
+
+
+def _is_within_root(path: str, root: str) -> bool:
+    p = str(PurePosixPath(path))
+    r = str(PurePosixPath(root))
+    return p == r or p.startswith(f"{r}/")
+
+
+def _extract_profile_context(messages: list[AnyMessage]) -> dict:
+    context = {
+        "selected_root": "/workspace-data",
+        "allowed_roots": ["/workspace-data"],
+        "tool_mode": "read_write",
+    }
+    marker_prefix = "[project-profile:"
+    for msg in messages:
+        if not isinstance(msg, SystemMessage):
+            continue
+        content = getattr(msg, "content", "")
+        if not isinstance(content, str) or marker_prefix not in content:
+            continue
+
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        for line in lines:
+            if line.lower().startswith("filesystem root:"):
+                context["selected_root"] = _normalize_root_path(line.split(":", 1)[1].strip())
+            elif line.lower().startswith("allowed roots:"):
+                raw = line.split(":", 1)[1].strip()
+                roots = [_normalize_root_path(r.strip()) for r in raw.split(",") if r.strip()]
+                if roots:
+                    context["allowed_roots"] = roots
+            elif line.lower().startswith("tool mode:"):
+                mode = line.split(":", 1)[1].strip().lower()
+                context["tool_mode"] = mode or "read_write"
+
+        if context["selected_root"] not in context["allowed_roots"]:
+            context["allowed_roots"].append(context["selected_root"])
+        return context
+
+    return context
+
+
+def _build_guarded_tools(policy: dict, base_tools: list):
+    selected_root = _normalize_root_path(policy.get("selected_root", "/workspace-data"))
+    tool_mode = str(policy.get("tool_mode", "read_write")).lower()
+    read_only = tool_mode == "read_only"
+
+    def enforce_path(path: str):
+        abs_path = _to_absolute_tool_path(path)
+        if not _is_within_root(abs_path, selected_root):
+            raise PermissionError(
+                f"Path '{abs_path}' is outside selected filesystem root '{selected_root}'"
+            )
+        return abs_path
+
+    def enforce_write_allowed():
+        if read_only:
+            raise PermissionError("Profile tool mode is read_only; write operations are blocked")
+
+    @tool("get_root")
+    def guarded_get_root() -> str:
+        """Return the currently enforced filesystem root for this run."""
+        return selected_root
+
+    @tool("list_directory")
+    def guarded_list_directory(path: str = "."):
+        """List files and folders under a directory in the selected filesystem root."""
+        safe_path = enforce_path(path)
+        return _invoke_tool("list_directory", {"path": safe_path}, base_tools)
+
+    @tool("read_text_file")
+    def guarded_read_text_file(path: str):
+        """Read a UTF-8 text file from the selected filesystem root."""
+        safe_path = enforce_path(path)
+        return _invoke_tool("read_text_file", {"path": safe_path}, base_tools)
+
+    @tool("write_text_file")
+    def guarded_write_text_file(path: str, content: str, create_parents: bool = True):
+        """Create or overwrite a UTF-8 text file inside the selected filesystem root."""
+        enforce_write_allowed()
+        safe_path = enforce_path(path)
+        return _invoke_tool(
+            "write_text_file",
+            {"path": safe_path, "content": content, "create_parents": create_parents},
+            base_tools,
+        )
+
+    @tool("append_text_file")
+    def guarded_append_text_file(path: str, content: str, create_parents: bool = True):
+        """Append UTF-8 text to a file in the selected filesystem root."""
+        enforce_write_allowed()
+        safe_path = enforce_path(path)
+        return _invoke_tool(
+            "append_text_file",
+            {"path": safe_path, "content": content, "create_parents": create_parents},
+            base_tools,
+        )
+
+    @tool("make_directory")
+    def guarded_make_directory(path: str, exist_ok: bool = True):
+        """Create a directory inside the selected filesystem root."""
+        enforce_write_allowed()
+        safe_path = enforce_path(path)
+        return _invoke_tool("make_directory", {"path": safe_path, "exist_ok": exist_ok}, base_tools)
+
+    @tool("move_path")
+    def guarded_move_path(src: str, dst: str, overwrite: bool = False):
+        """Move or rename a file/folder inside the selected filesystem root."""
+        enforce_write_allowed()
+        safe_src = enforce_path(src)
+        safe_dst = enforce_path(dst)
+        return _invoke_tool(
+            "move_path",
+            {"src": safe_src, "dst": safe_dst, "overwrite": overwrite},
+            base_tools,
+        )
+
+    @tool("delete_path")
+    def guarded_delete_path(path: str, recursive: bool = True):
+        """Delete a file or directory in the selected filesystem root."""
+        enforce_write_allowed()
+        safe_path = enforce_path(path)
+        return _invoke_tool("delete_path", {"path": safe_path, "recursive": recursive}, base_tools)
+
+    return [
+        guarded_get_root,
+        guarded_list_directory,
+        guarded_read_text_file,
+        guarded_write_text_file,
+        guarded_append_text_file,
+        guarded_make_directory,
+        guarded_move_path,
+        guarded_delete_path,
+    ]
+
+
+def _get_policy_key(policy: dict) -> tuple:
+    selected_root = _normalize_root_path(policy.get("selected_root", "/workspace-data"))
+    tool_mode = str(policy.get("tool_mode", "read_write")).lower()
+    return selected_root, tool_mode
+
+
+def _get_tool_agent_for_policy(policy: dict):
+    base_agent = _get_tool_agent()
+    if base_agent is None or not _MCP_TOOLS:
+        return None, []
+
+    key = _get_policy_key(policy)
+    cached = _TOOL_AGENTS_BY_POLICY.get(key)
+    if cached is not None:
+        return cached["agent"], cached["tools"]
+
+    guarded_tools = _build_guarded_tools(policy, _MCP_TOOLS)
+    guarded_agent = create_react_agent(_model, guarded_tools)
+    _TOOL_AGENTS_BY_POLICY[key] = {"agent": guarded_agent, "tools": guarded_tools}
+    return guarded_agent, guarded_tools
+
+
 def chat_node(state: GraphState) -> GraphState:
     last_user_text = _last_user_text(state["messages"])
+    profile_policy = _extract_profile_context(state["messages"])
+    selected_root = profile_policy.get("selected_root", "/workspace-data")
     is_write_intent = _is_write_intent(last_user_text)
     target_path = _extract_target_path(last_user_text) if is_write_intent else None
-    tool_agent = _get_tool_agent() if _should_use_tools(state["messages"]) else None
+    tool_agent = None
+    effective_tools = []
+    if _should_use_tools(state["messages"]):
+        tool_agent, effective_tools = _get_tool_agent_for_policy(profile_policy)
+
+    if is_write_intent and target_path:
+        abs_target = _to_absolute_tool_path(target_path)
+        if not _is_within_root(abs_target, selected_root):
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            f"Refused to write outside selected filesystem root. "
+                            f"Selected root: {selected_root}. Requested path: {abs_target}."
+                        )
+                    )
+                ]
+            }
+
     if is_write_intent and target_path and tool_agent is None:
         return {
             "messages": [
@@ -303,7 +533,7 @@ def chat_node(state: GraphState) -> GraphState:
                     tool_args = {}
 
                 try:
-                    tool_result = _invoke_tool(tool_name, tool_args)
+                    tool_result = _invoke_tool(tool_name, tool_args, effective_tools)
                     response = AIMessage(content=_tool_result_to_text(tool_result))
                 except Exception as exc:  # noqa: BLE001
                     response = AIMessage(content=f"Tool '{tool_name}' failed: {exc}")
@@ -311,6 +541,12 @@ def chat_node(state: GraphState) -> GraphState:
         # Fallback for weaker models: if user asked to write a file and the model only returned code,
         # persist that code to the requested path.
         response_text = getattr(response, "content", "")
+        if isinstance(response_text, str):
+            friendly = _humanize_tool_payload_text(response_text)
+            if friendly:
+                response = AIMessage(content=friendly)
+                response_text = friendly
+
         if isinstance(response_text, str) and is_write_intent:
             code = _extract_code_block(response_text)
             if target_path and code:
@@ -323,6 +559,7 @@ def chat_node(state: GraphState) -> GraphState:
                             "content": code,
                             "create_parents": True,
                         },
+                        effective_tools,
                     )
                     response = AIMessage(
                         content=(
@@ -333,7 +570,7 @@ def chat_node(state: GraphState) -> GraphState:
                 except Exception as exc:  # noqa: BLE001
                     response = AIMessage(content=f"Failed to write {target_path}: {exc}")
 
-        if is_write_intent and target_path and not _verify_text_file_exists(target_path):
+        if is_write_intent and target_path and not _verify_text_file_exists(target_path, effective_tools):
             response = AIMessage(
                 content=(
                     f"Write requested for {target_path}, but no file was created. "

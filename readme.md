@@ -35,6 +35,10 @@ Additional services:
 
 ## Quick start
 
+### Host prerequisite for NVIDIA GPU
+
+If you want Ollama to run with CUDA acceleration, install the NVIDIA Container Toolkit on the Docker host before starting the stack. This project now requests `gpus: all` for the Ollama container, so Docker must already be configured to expose the NVIDIA runtime.
+
 ### 1. Start all services
 
 ```bash

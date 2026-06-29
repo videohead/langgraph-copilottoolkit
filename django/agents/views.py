@@ -13,6 +13,7 @@ import uuid
 import importlib.util
 import os
 import logging
+import asyncio
 from pathlib import Path
 
 from django.http import JsonResponse, StreamingHttpResponse
@@ -287,6 +288,35 @@ def _content_to_text(content) -> str:
     return str(content)
 
 
+def _is_expected_termination_error(exc: BaseException) -> bool:
+    """Return True for normal cancellation/disconnect cases during SSE streaming."""
+    if isinstance(
+        exc,
+        (
+            GeneratorExit,
+            asyncio.CancelledError,
+            BrokenPipeError,
+            ConnectionAbortedError,
+            ConnectionResetError,
+        ),
+    ):
+        return True
+
+    message = str(exc).strip().lower()
+    if not message:
+        return False
+
+    if message == "terminated":
+        return True
+
+    return (
+        "cancel" in message
+        or "disconnect" in message
+        or "connection closed" in message
+        or "broken pipe" in message
+    )
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -399,7 +429,12 @@ def run_agent(request, graph_name: str):
             if current_msg_id is not None:
                 yield _sse({"type": "TEXT_MESSAGE_END", "messageId": current_msg_id})
 
-        except Exception as exc:  # noqa: BLE001
+        except BaseException as exc:  # noqa: BLE001
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            if _is_expected_termination_error(exc):
+                _LOG.info("run_agent terminated graph=%s thread=%s", graph_name, thread_id)
+                return
             yield _sse(
                 {
                     "type": "RUN_ERROR",
