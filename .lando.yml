@@ -1,5 +1,33 @@
 name: langgraph
 services:
+  postgres:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      image: postgres:16-alpine
+      command: docker-entrypoint.sh postgres
+      environment:
+        POSTGRES_USER: langgraph
+        POSTGRES_PASSWORD: langgraph
+        POSTGRES_DB: langgraph
+      ports:
+        - "5432"
+      volumes:
+        - /var/lib/postgresql/data
+
+  redis:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      image: redis:7-alpine
+      command: redis-server --appendonly yes
+      ports:
+        - "6379"
+      volumes:
+        - /data
+
   mcp-filesystem:
     api: 3
     type: lando
@@ -50,6 +78,8 @@ services:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
         MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
+        POSTGRES_URI: postgresql://langgraph:langgraph@postgres.langgraph.internal:5432/langgraph?sslmode=disable
+        REDIS_URL: redis://redis.langgraph.internal:6379/0
       ports:
         - "8000"
     moreHttpPorts:
@@ -69,6 +99,8 @@ services:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
         MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
+        POSTGRES_URI: postgresql://langgraph:langgraph@postgres.langgraph.internal:5432/langgraph?sslmode=disable
+        REDIS_URL: redis://redis.langgraph.internal:6379/0
         LANGGRAPH_REGISTRY_FILE: /user/www/langgraph-copilottoolkit/langgraph.json
         PYTHONPATH: /app
         DEBUG: "true"
@@ -94,6 +126,7 @@ services:
       environment:
         # Internal Lando hostname for Django
         DJANGO_INTERNAL_URL: http://django.langgraph.internal:8080
+        REDIS_URL: redis://redis.langgraph.internal:6379/0
         NEXT_TELEMETRY_DISABLED: "1"
         WATCHPACK_POLLING: "true"
       ports:
@@ -118,6 +151,12 @@ services:
         - ./public:/usr/share/nginx/html:ro
 
 proxy:
+  postgres:
+    - postgres.langgraph.lndo.site:5432
+
+  redis:
+    - redis.langgraph.lndo.site:6379
+
   mcp-filesystem:
     - mcpfs.langgraph.lndo.site:8765
 
@@ -167,6 +206,10 @@ tooling:
     service: django
     cmd: python
     description: Run python in the django container
+  curl:
+    service: django
+    cmd: curl
+    description: Run curl in the django container
 
   # Graph runner (CLI)
   graph:
@@ -182,3 +225,11 @@ tooling:
     service: mcp-filesystem
     cmd: /bin/sh
     description: Open a shell inside the MCP filesystem container
+  psql:
+    service: postgres
+    cmd: psql -U langgraph -d langgraph
+    description: Open a psql shell in the Postgres container
+  redis-cli:
+    service: redis
+    cmd: redis-cli
+    description: Open a redis-cli shell in the Redis container

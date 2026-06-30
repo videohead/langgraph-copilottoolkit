@@ -4,7 +4,7 @@ import { HttpAgent } from "@ag-ui/client";
 export const djangoUrl =
   process.env.DJANGO_INTERNAL_URL?.replace(/\/$/, "") ?? "http://django:8080";
 
-const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1"];
+const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1", "reflection_v1", "plan_execute_v1", "supervisor_v1"];
 const RUNTIME_CACHE_TTL_MS = Number(process.env.COPILOTKIT_RUNTIME_CACHE_MS ?? 5000);
 const DISCOVERY_TIMEOUT_MS = Number(process.env.COPILOTKIT_DISCOVERY_TIMEOUT_MS ?? 800);
 

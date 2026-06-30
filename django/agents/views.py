@@ -46,7 +46,7 @@ _PROJECT_PROFILES_FALLBACK = [
         "filesystem_roots": ["/workspace-data"],
         "mcp_root": "/workspace-data",
         "default_graph": "basic",
-        "allowed_graphs": ["basic", "swarm_v1"],
+        "allowed_graphs": ["basic", "swarm_v1", "reflection_v1", "plan_execute_v1", "supervisor_v1"],
         "tool_mode": "read_write",
     }
 ]
@@ -54,6 +54,9 @@ _PROJECT_PROFILES_FALLBACK = [
 _GRAPH_DESCRIPTION_FALLBACKS = {
     "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools.",
     "swarm_v1": "Multi-agent swarm: planner → coder → reviewer → writer.",
+    "reflection_v1": "Draft-critique-revise loop adapted from LangGraph reflection examples for higher-quality answers.",
+    "plan_execute_v1": "Planner-executor-synthesizer workflow adapted from plan-and-execute examples for structured reasoning.",
+    "supervisor_v1": "LLM-supervised multi-agent workflow inspired by LangGraph Supervisor pattern, routing between Researcher and Coder until completion.",
 }
 
 _GRAPH_CACHE = {
@@ -388,6 +391,7 @@ def run_agent(request, graph_name: str):
             # giving token-level streaming for each node in the graph.
             for chunk, metadata in graph.stream(
                 {"messages": lc_messages},
+                {"configurable": {"thread_id": thread_id}},
                 stream_mode="messages",
             ):
                 if not isinstance(chunk, (AIMessageChunk, AIMessage)):

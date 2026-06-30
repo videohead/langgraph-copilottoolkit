@@ -10,7 +10,7 @@
     ],
     "mcp_root": "/workspace-data",
     "default_graph": "basic",
-    "allowed_graphs": ["basic", "swarm_v1"],
+    "allowed_graphs": ["basic", "swarm_v1", "reflection_v1", "plan_execute_v1", "supervisor_v1"],
     "tool_mode": "read_write"
   },
   {
@@ -23,7 +23,7 @@
     ],
     "mcp_root": "/workspace-data/webapps",
     "default_graph": "swarm_v1",
-    "allowed_graphs": ["swarm_v1", "basic"],
+    "allowed_graphs": ["swarm_v1", "basic", "reflection_v1", "plan_execute_v1", "supervisor_v1"],
     "tool_mode": "read_only"
   }
 ]

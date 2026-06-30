@@ -1,7 +1,7 @@
 # LangGraph + CopilotKit (Lando)
 
 A local AI development stack: **LangGraph** graphs powered by **Ollama**, exposed through a **Django** AG-UI API, and surfaced in a **CopilotKit** React/NextJS frontend — all orchestrated by Lando with no cloud licensing required. Uses MCP filesystem for read/write capabilities, and is configurable via Django and file editing. 
-Users can configure and select multiple graphs, multiple agents (and agentic swarms), and can view graph shape via Python and Mermaid chart.
+Users can configure and select multiple graphs, multiple agents (and agentic swarms), and can view graph shape via Python-exported Mermaid diagrams rendered to PNG.
 Any Ollama capable model can be loaded on startup to respond to agents, base configured with Qwen for constrained model size/functionality tradeoffs.
 Services are Dockerfile configured and exposed via Lando as a multi-endpoint capable system (I prefer using names for services instead of port names). You should easily be able to strip out the Lando toolset and just run this in Docker if you want.
 Agents are enabled to read-write to the filesystem for advanced coding toolchains.
@@ -33,7 +33,8 @@ Browser
   └─▶ langgraph.lndo.site          (Next.js :3000  — CopilotKit UI)
         └─▶ /api/copilotkit/*       (CopilotKit Runtime — Next.js API route)
               └─▶ django:8080       (Django AG-UI streaming endpoint)
-                    └─▶ ollama:11434 (Ollama LLM)
+        ├─▶ ollama:11434  (Ollama LLM)
+        └─▶ postgres:5432 (LangGraph durable checkpoints)
 ```
 
 Additional services:
@@ -44,7 +45,8 @@ Additional services:
 | `api.langgraph.lndo.site` | `django` | AG-UI + REST API |
 | `langgraph-api.lndo.site` | `appserver` | Raw LangGraph dev server |
 | `mcpfs.langgraph.lndo.site` | `mcp-filesystem` | Streamable HTTP MCP filesystem tools (sandboxed) |
-| `charts.langgraph.lndo.site` | `charts` | Mermaid chart viewer |
+| `charts.langgraph.lndo.site` | `charts` | Per-graph Mermaid PNG viewer |
+| `postgres.langgraph.lndo.site` | `postgres` | Durable LangGraph checkpoint storage |
 
 > **Note:** `.lndo.site` DNS may be blocked by system security policy. Use `lando info` to get the `localhost` port for each service.
 
@@ -127,6 +129,60 @@ lando rebuild -y
 |----------|-------------|
 | `basic` | ReAct chat agent backed by Ollama with MCP filesystem tools |
 | `swarm_v1` | Multi-agent chat pipeline with MCP filesystem tool access |
+| `reflection_v1` | Draft-critique-revise workflow for higher-quality responses |
+| `plan_execute_v1` | Planner-executor-synthesizer workflow for structured reasoning |
+| `supervisor_v1` | LLM-supervised multi-agent workflow that routes between Researcher and Coder until FINISH |
+
+---
+
+## Composing new complex graphs
+
+### Existing graph patterns to build from
+
+Each graph in `src/` demonstrates a different architectural pattern you can extend or combine:
+
+| Graph | Pattern | Extra state fields |
+|---|---|---|
+| `basic_graph` | ReAct agent with MCP tools | `messages` only |
+| `plan_execute_graph` | Plan → step-by-step execution | `plan_steps`, `step_index`, `step_outputs` |
+| `reflection_graph` | Draft → critique → revise loop | `revision_count` |
+| `supervisor_graph` | LLM supervisor routes between specialist sub-agents | `next`, `rounds` |
+| `swarm_graph` | Fixed-sequence multi-agent handoff | `task`, `plan`, `draft`, `review` |
+
+### Key composition techniques
+
+- **Conditional routing** — `builder.add_conditional_edges()` to branch based on state; see `supervisor_graph`.
+- **Loops** — add an edge back to an earlier node with a counter guard to cap iterations; see `reflection_graph`.
+- **Parallel sub-agents** — `create_react_agent` per specialist, then a supervisor node that selects the next agent; see `supervisor_graph`.
+- **Stateful multi-step pipelines** — add extra fields beyond `messages` to your `TypedDict` state; see `plan_execute_graph`.
+- **MCP tool access** — the `MultiServerMCPClient` import guard in `basic_graph` and `swarm_graph` is the pattern to follow; tools are bound at node-init time.
+
+### Good starting points for common goals
+
+| Goal | Start from | What to change |
+|---|---|---|
+| Hierarchical multi-agent | `supervisor_graph` | Add more specialist `create_react_agent` nodes |
+| Iterative refinement with tools | `reflection_graph` + `basic_graph` | Bind MCP tools to the draft node |
+| Long structured pipeline | `plan_execute_graph` | Add conditional branching per step type |
+| Dynamic swarm handoff | `swarm_graph` | Replace fixed edges with an LLM-driven router |
+
+### Required conventions for every new graph
+
+- `graph.py` must export `graph = builder.compile()`.
+- Read `OLLAMA_BASE_URL` and `OLLAMA_MODEL` from environment — never hard-code model names.
+- Import `get_checkpointer` from `src.checkpointing` if you want durable conversation memory.
+
+---
+
+## When adding a new graph
+
+Use this quick checklist:
+
+- Add the graph module under `src/<graph_name>/graph.py` and export a compiled `graph` symbol.
+- Register the graph ID in `langgraph.json` under `graphs`.
+- Add or update the graph description in `django/graph_descriptions.json`.
+- Run `./scripts/render-mermaid-png.sh` to generate `public/<graph_id>-chart.png`.
+- Verify chart availability in the Services Dashboard (`/services`) and chat availability in the Agent selector.
 
 ---
 
@@ -360,11 +416,29 @@ BASE_URL=http://localhost:<PORT> ./scripts/run-graph.sh swarm_v1 "your prompt"
 
 ## Mermaid chart viewer
 
-Generate a PNG from the Mermaid block in this README:
+Generate PNGs for all registered graphs in `langgraph.json`:
 
 ```bash
 ./scripts/render-mermaid-png.sh
 ```
+
+Optional arguments:
+
+```bash
+./scripts/render-mermaid-png.sh [registry_file] [output_dir]
+```
+
+Default values:
+
+- `registry_file`: `./langgraph.json`
+- `output_dir`: `./public`
+
+How it works:
+
+- Runs Python graph introspection in the appserver container
+- Exports Mermaid `.mmd` files for every graph ID in `langgraph.json`
+- Renders each Mermaid file to `public/<graph_id>-chart.png`
+- Maintains `public/swarm-chart.png` as a legacy compatibility alias for `swarm_v1`
 
 One-command preview loop (regen + open + auto-refresh):
 
@@ -372,7 +446,8 @@ One-command preview loop (regen + open + auto-refresh):
 ./scripts/preview-chart-loop.sh
 ```
 
-This writes `public/swarm-chart.png` and serves it at `charts.langgraph.lndo.site` (or `http://localhost:8124` with Docker Compose).
+The chart service serves files from `public/` at `charts.langgraph.lndo.site` (or `http://localhost:8124` with Docker Compose).
+The frontend services dashboard checks for graph-specific files using the `public/<graph_id>-chart.png` pattern.
 
 ---
 
@@ -469,6 +544,7 @@ src/
 scripts/
   run-graph.sh               CLI runner for any graph ID
   pull-model.sh              Pull the Ollama model
-  render-mermaid-png.sh      Render Mermaid diagrams to PNG
-  preview-chart-loop.sh      Live-preview loop for chart PNG
+  export_graph_mermaid.py    Export Mermaid diagrams for all graphs from langgraph.json
+  render-mermaid-png.sh      Render per-graph Mermaid diagrams to PNG in public/
+  preview-chart-loop.sh      Live-preview loop for graph chart PNG regeneration
 ```

@@ -1,3 +1,5 @@
+import net from "node:net";
+
 const DEFAULT_ENDPOINTS = {
   django: [
     process.env.DJANGO_INTERNAL_URL,
@@ -24,6 +26,11 @@ const DEFAULT_ENDPOINTS = {
     "http://charts:80",
     "http://charts.langgraph.internal:80",
   ],
+  postgres: [
+    process.env.POSTGRES_INTERNAL_HOST,
+    "postgres",
+    "postgres.langgraph.internal",
+  ],
 };
 
 const PUBLIC_LOCATIONS = {
@@ -33,6 +40,7 @@ const PUBLIC_LOCATIONS = {
   ollama: process.env.OLLAMA_PUBLIC_URL ?? "http://localhost:11434",
   mcpFilesystem: process.env.MCP_FILESYSTEM_PUBLIC_URL ?? "http://mcpfs.langgraph.lndo.site",
   charts: process.env.CHARTS_PUBLIC_URL ?? "http://charts.langgraph.lndo.site",
+  postgres: process.env.POSTGRES_PUBLIC_URL ?? "postgres://postgres.langgraph.lndo.site:5432/langgraph",
 };
 
 const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1"];
@@ -100,6 +108,56 @@ async function probeUrls(urls, fetchImpl, timeoutMs) {
   return {
     status: "down",
     probeUrl: urls[0] ?? null,
+    statusCode: null,
+    error: lastError,
+  };
+}
+
+async function probeTcpHost(host, port, timeoutMs) {
+  if (!host) {
+    return { ok: false, error: "missing host" };
+  }
+
+  return await new Promise((resolve) => {
+    const socket = net.createConnection({ host, port });
+    let settled = false;
+
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish({ ok: true, error: null }));
+    socket.once("timeout", () => finish({ ok: false, error: "timeout" }));
+    socket.once("error", (error) => {
+      finish({ ok: false, error: error instanceof Error ? error.message : "tcp probe failed" });
+    });
+  });
+}
+
+async function probeTcpHosts(hosts, port, timeoutMs) {
+  let lastError = "no probe targets";
+  for (const host of hosts) {
+    const result = await probeTcpHost(host, port, timeoutMs);
+    if (result.ok) {
+      return {
+        status: "up",
+        probeUrl: `tcp://${host}:${port}`,
+        statusCode: null,
+        error: null,
+      };
+    }
+    lastError = result.error || "tcp probe failed";
+  }
+
+  return {
+    status: "down",
+    probeUrl: hosts[0] ? `tcp://${hosts[0]}:${port}` : null,
     statusCode: null,
     error: lastError,
   };
@@ -314,6 +372,14 @@ export async function buildServicesDashboardData(options = {}) {
         fetchImpl,
         timeoutMs,
       ),
+    },
+    {
+      id: "postgres",
+      name: "Postgres",
+      group: "additional",
+      location: PUBLIC_LOCATIONS.postgres,
+      detail: "LangGraph checkpoint store",
+      startup: await probeTcpHosts(normalizeBaseUrls(DEFAULT_ENDPOINTS.postgres), 5432, timeoutMs),
     },
   ];
 

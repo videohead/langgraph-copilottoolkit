@@ -3,6 +3,41 @@ networks:
     driver: bridge
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: langgraph-postgres
+    networks:
+      - langgraph-net
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-langgraph}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-langgraph}"
+      POSTGRES_DB: "${POSTGRES_DB:-langgraph}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-langgraph} -d ${POSTGRES_DB:-langgraph} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: langgraph-redis
+    networks:
+      - langgraph-net
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   mcp-filesystem:
     build:
       context: .
@@ -58,6 +93,10 @@ services:
         condition: service_healthy
       mcp-filesystem:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8123:8000"
     env_file:
@@ -67,6 +106,8 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
+      POSTGRES_URI: "${POSTGRES_URI:-postgresql://langgraph:langgraph@postgres:5432/langgraph?sslmode=disable}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     volumes:
       - ./:/app
     command: ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8000"]
@@ -84,6 +125,10 @@ services:
         condition: service_healthy
       mcp-filesystem:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     env_file:
@@ -93,6 +138,8 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
+      POSTGRES_URI: "${POSTGRES_URI:-postgresql://langgraph:langgraph@postgres:5432/langgraph?sslmode=disable}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       LANGGRAPH_REGISTRY_FILE: /workspace/langgraph.json
       DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-dev-secret-key-please-change}"
       DEBUG: "true"
@@ -121,6 +168,7 @@ services:
       - "3000:3000"
     environment:
       DJANGO_INTERNAL_URL: http://django:8080
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       NEXT_TELEMETRY_DISABLED: "1"
       WATCHPACK_POLLING: "true"
     volumes:
@@ -137,4 +185,8 @@ services:
       - "8124:80"
     volumes:
       - ./public:/usr/share/nginx/html:ro
+
+volumes:
+  postgres-data:
+  redis-data:
 

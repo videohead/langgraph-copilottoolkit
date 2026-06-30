@@ -5,3 +5,10 @@ frontend/.turbo/
 
 # Writable sandbox for MCP filesystem server
 workspace-data/
+
+# Python caches
+**/__pycache__/
+*.py[cod]
+
+# Local LangGraph runtime cache/state
+.langgraph_api/

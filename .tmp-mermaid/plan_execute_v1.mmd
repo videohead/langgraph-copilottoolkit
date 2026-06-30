@@ -1,0 +1,17 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__(<p>__start__</p>)
+	planner(planner)
+	execute_step(execute_step)
+	synthesize(synthesize)
+	__end__(<p>__end__</p>)
+	__start__ --> planner;
+	planner --> execute_step;
+	execute_step --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

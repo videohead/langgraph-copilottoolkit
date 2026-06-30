@@ -13,6 +13,7 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
+from src.checkpointing import get_checkpointer
 from typing_extensions import TypedDict
 
 try:
@@ -586,4 +587,4 @@ builder = StateGraph(GraphState)
 builder.add_node("chat", chat_node)
 builder.set_entry_point("chat")
 builder.add_edge("chat", END)
-graph = builder.compile()
+graph = builder.compile(checkpointer=get_checkpointer())

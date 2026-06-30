@@ -9,11 +9,31 @@ applyTo: "{docker-compose.yml,.lando.yml,**/Dockerfile}"
 
 | Service | Definition | Build context | Internal port |
 |---------|-----------|---------------|---------------|
+| `postgres` | Lando + Compose | prebuilt image | 5432 |
+| `redis` | Lando + Compose | prebuilt image | 6379 |
+| `mcp-filesystem` | Lando + Compose | repo root `.` | 8765 |
 | `ollama` | Lando + Compose | prebuilt image | 11434 |
 | `appserver` / `langgraph` | Lando + Compose | repo root `.` | 8000 |
 | `django` | Lando + Compose | repo root `.` | 8080 |
 | `frontend` | Lando + Compose | `./frontend` | 3000 |
 | `charts` | Lando + Compose | prebuilt image | 80 |
+
+## Required sync updates when adding a service
+
+When adding or renaming any service in `docker-compose.yml` or `.lando.yml`, also update all of the following in the same change:
+
+1. Runtime stack config:
+  - `docker-compose.yml` service definition, healthcheck/dependencies, volumes, and env wiring.
+  - `.lando.yml` service definition, proxy URL, and tooling commands.
+2. User-facing docs:
+  - `readme.md` architecture diagram and the "Additional services" table.
+3. User-facing services map API:
+  - `frontend/app/api/services/data.mjs` in all three places:
+    - `DEFAULT_ENDPOINTS`
+    - `PUBLIC_LOCATIONS`
+    - `services` array in `buildServicesDashboardData()`
+
+Minimum expected entries include both durable and coordination stores (`postgres` and `redis`) so they appear in docs and in the services dashboard.
 
 ## Build context rules
 
@@ -163,7 +183,10 @@ healthcheck:
 | Host port | Service | Notes |
 |-----------|---------|-------|
 | 3000 | frontend | Next.js dev server |
+| 5432 | postgres | Durable checkpoint storage |
+| 6379 | redis | Orchestration/state coordination cache |
 | 8080 | django | Django/uvicorn |
+| 8765 | mcp-filesystem | MCP filesystem server |
 | 8123 | langgraph | LangGraph dev server (maps container :8000) |
 | 8124 | charts | nginx static |
 | 11434 | ollama | Ollama API |
@@ -179,7 +202,10 @@ Do not run project runtime commands in the host shell. Use a service shell.
 | Frontend | `lando ssh -s frontend` | `docker exec -it langgraph-frontend sh` |
 | Django | `lando ssh -s django` | `docker exec -it langgraph-django sh` |
 | LangGraph appserver | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
+| Postgres | `lando ssh -s postgres` | `docker exec -it langgraph-postgres sh` |
+| Redis | `lando ssh -s redis` | `docker exec -it langgraph-redis sh` |
 | Ollama | `lando ssh -s ollama` | `docker exec -it ollama sh` |
+| MCP filesystem | `lando ssh -s mcp-filesystem` | `docker exec -it langgraph-mcp-filesystem sh` |
 | Charts | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
 
 Use `lando ssh -s <service> -c "<cmd>"` (or `docker exec -it <container> sh -lc "<cmd>"`) for one-off commands.

@@ -1,4 +1,7 @@
 {
   "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools.",
-  "swarm_v1": "Multi-agent swarm chat graph with planner, coder, reviewer, and synthesizer stages, with MCP filesystem tool access."
+  "swarm_v1": "Multi-agent swarm chat graph with planner, coder, reviewer, and synthesizer stages, with MCP filesystem tool access.",
+  "reflection_v1": "Draft-critique-revise loop adapted from LangGraph reflection examples for higher-quality answers.",
+  "plan_execute_v1": "Planner-executor-synthesizer workflow adapted from plan-and-execute examples for structured reasoning.",
+  "supervisor_v1": "LLM-supervised multi-agent workflow inspired by LangGraph Supervisor pattern, routing between Researcher and Coder until completion."
 }

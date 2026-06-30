@@ -33,6 +33,21 @@ const FALLBACK_GRAPHS: GraphOption[] = [
     label: "Swarm V1",
     description: "Multi-agent pipeline: planner, coder, reviewer, and synthesizer.",
   },
+  {
+    id: "reflection_v1",
+    label: "Reflection V1",
+    description: "Draft-critique-revise loop for higher-quality answers.",
+  },
+  {
+    id: "plan_execute_v1",
+    label: "Plan Execute V1",
+    description: "Planner-executor-synthesizer workflow for structured reasoning.",
+  },
+  {
+    id: "supervisor_v1",
+    label: "Supervisor V1",
+    description: "LLM-supervised multi-agent workflow routing between Researcher and Coder.",
+  },
 ];
 
 const FALLBACK_PROFILES: ProjectProfile[] = [
@@ -43,7 +58,7 @@ const FALLBACK_PROFILES: ProjectProfile[] = [
     filesystem_roots: ["/workspace-data"],
     mcp_root: "/workspace-data",
     default_graph: "basic",
-    allowed_graphs: ["basic", "swarm_v1"],
+    allowed_graphs: ["basic", "swarm_v1", "reflection_v1", "plan_execute_v1", "supervisor_v1"],
     tool_mode: "read_write",
   },
 ];

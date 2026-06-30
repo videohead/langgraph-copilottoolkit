@@ -2,7 +2,8 @@
 set -eu
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-README_FILE="$ROOT_DIR/readme.md"
+WATCH_REGISTRY="$ROOT_DIR/langgraph.json"
+WATCH_SRC_DIR="$ROOT_DIR/src"
 RENDER_SCRIPT="$ROOT_DIR/scripts/render-mermaid-png.sh"
 
 if [ ! -x "$RENDER_SCRIPT" ]; then
@@ -75,20 +76,23 @@ else
   echo "Could not auto-open browser. Open this URL manually: $CHART_URL"
 fi
 
-echo "Watching $README_FILE for changes. Press Ctrl+C to stop."
+echo "Watching $WATCH_REGISTRY and $WATCH_SRC_DIR for changes. Press Ctrl+C to stop."
 
 if command -v inotifywait >/dev/null 2>&1; then
-  while inotifywait -q -e close_write,move,create "$README_FILE" >/dev/null 2>&1; do
+  while inotifywait -q -r -e close_write,move,create "$WATCH_REGISTRY" "$WATCH_SRC_DIR" >/dev/null 2>&1; do
     echo "Change detected, regenerating PNG..."
     render_chart
   done
 else
-  LAST_SUM=$(cksum "$README_FILE" | awk '{print $1":"$2}')
+  LAST_REG_SUM=$(cksum "$WATCH_REGISTRY" | awk '{print $1":"$2}')
+  LAST_SRC_SUM=$(find "$WATCH_SRC_DIR" -type f -name '*.py' -exec cksum {} + 2>/dev/null | cksum | awk '{print $1":"$2}')
   while true; do
     sleep 2
-    NEW_SUM=$(cksum "$README_FILE" | awk '{print $1":"$2}')
-    if [ "$NEW_SUM" != "$LAST_SUM" ]; then
-      LAST_SUM="$NEW_SUM"
+    NEW_REG_SUM=$(cksum "$WATCH_REGISTRY" | awk '{print $1":"$2}')
+    NEW_SRC_SUM=$(find "$WATCH_SRC_DIR" -type f -name '*.py' -exec cksum {} + 2>/dev/null | cksum | awk '{print $1":"$2}')
+    if [ "$NEW_REG_SUM" != "$LAST_REG_SUM" ] || [ "$NEW_SRC_SUM" != "$LAST_SRC_SUM" ]; then
+      LAST_REG_SUM="$NEW_REG_SUM"
+      LAST_SRC_SUM="$NEW_SRC_SUM"
       echo "Change detected, regenerating PNG..."
       render_chart
     fi

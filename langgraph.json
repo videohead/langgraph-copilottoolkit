@@ -4,7 +4,10 @@
   ],
   "graphs": {
     "basic": "./src/basic_graph/graph.py:graph",
-    "swarm_v1": "./src/swarm_graph/graph.py:graph"
+    "swarm_v1": "./src/swarm_graph/graph.py:graph",
+    "reflection_v1": "./src/reflection_graph/graph.py:graph",
+    "plan_execute_v1": "./src/plan_execute_graph/graph.py:graph",
+    "supervisor_v1": "./src/supervisor_graph/graph.py:graph"
   },
   "env": ".env"
 }

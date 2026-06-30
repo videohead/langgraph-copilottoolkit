@@ -99,6 +99,23 @@ When a new graph is added (see `add-graph.instructions.md`), register a new `Htt
 
 Never prefix internal service URLs with `NEXT_PUBLIC_` — that would expose them to the browser bundle.
 
+## User-facing services map
+
+The services dashboard payload is built in `frontend/app/api/services/data.mjs`.
+
+When services are added or renamed in infrastructure (`docker-compose.yml` / `.lando.yml`), update this file in the same change so the UI reflects the real stack.
+
+Required updates for each service:
+
+1. `DEFAULT_ENDPOINTS` for internal probe targets
+2. `PUBLIC_LOCATIONS` for the displayed endpoint URL
+3. The `services` array in `buildServicesDashboardData()` for the dashboard card
+
+Baseline datastore services that must remain represented are:
+
+- `postgres` (durable checkpoints)
+- `redis` (orchestration/state coordination)
+
 ## Adding a frontend npm dependency
 
 ```bash
