@@ -103,6 +103,7 @@ services:
       - path: .env
         required: false
     environment:
+      LANGGRAPH_API_MODE: "true"
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
@@ -110,7 +111,7 @@ services:
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     volumes:
       - ./:/app
-    command: ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["sh", "scripts/start-appserver.sh"]
 
   django:
     build:

@@ -44,6 +44,12 @@ def get_checkpointer() -> Any | None:
         _LOG.info("LangGraph checkpoints disabled via LANGGRAPH_CHECKPOINTS_ENABLED")
         return None
 
+    if _env_flag("LANGGRAPH_API_MODE", "false"):
+        _LOG.info(
+            "LangGraph custom checkpointer used only during checkpointer initialization - disabled in API mode; runtime-managed persistence is used"
+        )
+        return None
+
     postgres_uri = os.environ.get("POSTGRES_URI", "").strip()
     if not postgres_uri:
         _LOG.info("LangGraph checkpoints disabled: POSTGRES_URI is not set")
