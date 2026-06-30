@@ -117,6 +117,14 @@ Import graphs as: `from src.<module>.graph import graph as _name`
 
 `src/` is volume-mounted `:ro` — do not write files from Django into that path.
 
+## MCP shell policy boundaries
+
+If shell tools are enabled for graphs, keep command allowlist enforcement in the `mcp-shell` service itself.
+
+- Django/profile policy may add higher-level gating (for example, profile-level shell enable/disable).
+- Django policy is not a substitute for execution-layer allowlist checks.
+- Do not treat Postgres persistence as the primary allowlist source unless you also implement explicit reload/sync semantics in `mcp-shell`.
+
 ## ASGI / uvicorn
 
 Django runs under uvicorn via:

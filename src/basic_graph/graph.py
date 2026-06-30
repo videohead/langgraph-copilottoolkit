@@ -59,19 +59,25 @@ async def _load_mcp_tools():
     if os.environ.get("MCP_FILESYSTEM_ENABLED", "true").lower() not in {"1", "true", "yes"}:
         return []
 
-    mcp_url = os.environ.get("MCP_FILESYSTEM_URL", "http://mcp-filesystem:8765/mcp")
-    client = MultiServerMCPClient(
-        {
-            "filesystem": {
-                "transport": "http",
-                "url": mcp_url,
-            }
+    filesystem_url = os.environ.get("MCP_FILESYSTEM_URL", "http://mcp-filesystem:8765/mcp")
+    servers = {
+        "filesystem": {
+            "transport": "http",
+            "url": filesystem_url,
         }
-    )
+    }
+    if os.environ.get("MCP_SHELL_ENABLED", "true").lower() in {"1", "true", "yes"}:
+        shell_url = os.environ.get("MCP_SHELL_URL", "http://mcp-shell:8770/mcp")
+        servers["shell"] = {
+            "transport": "http",
+            "url": shell_url,
+        }
+
+    client = MultiServerMCPClient(servers)
     try:
         return await client.get_tools()
     except Exception as exc:  # noqa: BLE001
-        _LOG.warning("Unable to load MCP filesystem tools from %s: %s", mcp_url, exc)
+        _LOG.warning("Unable to load MCP tools from %s: %s", servers, exc)
         return []
 
 
@@ -369,6 +375,10 @@ def _build_guarded_tools(policy: dict, base_tools: list):
         if read_only:
             raise PermissionError("Profile tool mode is read_only; write operations are blocked")
 
+    def enforce_shell_allowed():
+        if read_only:
+            raise PermissionError("Profile tool mode is read_only; shell operations are blocked")
+
     @tool("get_root")
     def guarded_get_root() -> str:
         """Return the currently enforced filesystem root for this run."""
@@ -434,7 +444,23 @@ def _build_guarded_tools(policy: dict, base_tools: list):
         safe_path = enforce_path(path)
         return _invoke_tool("delete_path", {"path": safe_path, "recursive": recursive}, base_tools)
 
-    return [
+    @tool("get_shell_policy")
+    def guarded_get_shell_policy():
+        """Return shell policy metadata for this run."""
+        enforce_shell_allowed()
+        return _invoke_tool("get_shell_policy", {}, base_tools)
+
+    @tool("run_shell")
+    def guarded_run_shell(command: str, cwd: str = ".", timeout_seconds: int | None = None):
+        """Run an allowlisted shell command in the selected filesystem root."""
+        enforce_shell_allowed()
+        safe_cwd = enforce_path(cwd)
+        payload = {"command": command, "cwd": safe_cwd}
+        if isinstance(timeout_seconds, int) and timeout_seconds > 0:
+            payload["timeout_seconds"] = timeout_seconds
+        return _invoke_tool("run_shell", payload, base_tools)
+
+    guarded = [
         guarded_get_root,
         guarded_list_directory,
         guarded_read_text_file,
@@ -444,6 +470,12 @@ def _build_guarded_tools(policy: dict, base_tools: list):
         guarded_move_path,
         guarded_delete_path,
     ]
+
+    if _find_tool("run_shell") is not None:
+        guarded.append(guarded_get_shell_policy)
+        guarded.append(guarded_run_shell)
+
+    return guarded
 
 
 def _get_policy_key(policy: dict) -> tuple:

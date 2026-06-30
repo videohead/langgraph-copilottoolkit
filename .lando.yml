@@ -45,6 +45,25 @@ services:
       volumes:
         - ./workspace-data:/workspace-data
 
+  mcp-shell:
+    api: 3
+    type: lando
+    app_mount: false
+    services:
+      build:
+        context: .
+        dockerfile: mcp-shell/Dockerfile
+      command: python server.py
+      environment:
+        MCP_SHELL_ROOT: /workspace-data
+        MCP_SHELL_TIMEOUT_SECONDS: "15"
+        MCP_SHELL_MAX_OUTPUT_BYTES: "65536"
+        MCP_SHELL_ALLOWLIST: "ls,cat,head,tail,pwd,echo,find,grep,rg,sed,awk,wc,stat,du,df,mkdir,cp,mv,touch"
+      ports:
+        - "8770"
+      volumes:
+        - ./workspace-data:/workspace-data
+
   ollama:
     api: 3
     type: lando
@@ -79,6 +98,7 @@ services:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
         MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
+        MCP_SHELL_URL: http://mcp-shell.langgraph.internal:8770/mcp
         POSTGRES_URI: postgresql://langgraph:langgraph@postgres.langgraph.internal:5432/langgraph?sslmode=disable
         REDIS_URL: redis://redis.langgraph.internal:6379/0
       ports:
@@ -100,6 +120,7 @@ services:
         OLLAMA_BASE_URL: http://ollama.langgraph.internal:11434
         OLLAMA_MODEL: qwen2.5-coder:7b
         MCP_FILESYSTEM_URL: http://mcp-filesystem.langgraph.internal:8765/mcp
+        MCP_SHELL_URL: http://mcp-shell.langgraph.internal:8770/mcp
         POSTGRES_URI: postgresql://langgraph:langgraph@postgres.langgraph.internal:5432/langgraph?sslmode=disable
         REDIS_URL: redis://redis.langgraph.internal:6379/0
         LANGGRAPH_REGISTRY_FILE: /user/www/langgraph-copilottoolkit/langgraph.json
@@ -160,6 +181,8 @@ proxy:
 
   mcp-filesystem:
     - mcpfs.langgraph.lndo.site:8765
+  mcp-shell:
+    - mcpshell.langgraph.lndo.site:8770
 
   # Frontend is the main entry point
   frontend:
@@ -226,6 +249,10 @@ tooling:
     service: mcp-filesystem
     cmd: /bin/sh
     description: Open a shell inside the MCP filesystem container
+  mcpshell-shell:
+    service: mcp-shell
+    cmd: /bin/sh
+    description: Open a shell inside the MCP shell container
   psql:
     service: postgres
     cmd: psql -U langgraph -d langgraph

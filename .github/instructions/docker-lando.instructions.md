@@ -12,6 +12,7 @@ applyTo: "{docker-compose.yml,.lando.yml,**/Dockerfile}"
 | `postgres` | Lando + Compose | prebuilt image | 5432 |
 | `redis` | Lando + Compose | prebuilt image | 6379 |
 | `mcp-filesystem` | Lando + Compose | repo root `.` | 8765 |
+| `mcp-shell` | Lando + Compose | repo root `.` | 8770 |
 | `ollama` | Lando + Compose | prebuilt image | 11434 |
 | `appserver` / `langgraph` | Lando + Compose | repo root `.` | 8000 |
 | `django` | Lando + Compose | repo root `.` | 8080 |
@@ -34,6 +35,19 @@ When adding or renaming any service in `docker-compose.yml` or `.lando.yml`, als
     - `services` array in `buildServicesDashboardData()`
 
 Minimum expected entries include both durable and coordination stores (`postgres` and `redis`) so they appear in docs and in the services dashboard.
+MCP services should also stay represented in docs and dashboard (`mcp-filesystem`, `mcp-shell`).
+
+## MCP shell allowlist management
+
+`mcp-shell` enforces command execution policy via environment variables:
+
+- `MCP_SHELL_ALLOWLIST` — comma-separated executable names.
+- `MCP_SHELL_ROOT` — command working-directory sandbox root.
+- `MCP_SHELL_TIMEOUT_SECONDS` — command timeout.
+- `MCP_SHELL_MAX_OUTPUT_BYTES` — stdout/stderr truncation bound.
+
+When editing allowlist values, update both `docker-compose.yml` and `.lando.yml` in the same change.
+The allowlist is loaded at process startup, so changes are **not** hot-reloaded. Restart/recreate `mcp-shell` after updates.
 
 ## Build context rules
 
@@ -187,6 +201,7 @@ healthcheck:
 | 6379 | redis | Orchestration/state coordination cache |
 | 8080 | django | Django/uvicorn |
 | 8765 | mcp-filesystem | MCP filesystem server |
+| 8770 | mcp-shell | MCP shell server |
 | 8123 | langgraph | LangGraph dev server (maps container :8000) |
 | 8124 | charts | nginx static |
 | 11434 | ollama | Ollama API |
@@ -206,6 +221,7 @@ Do not run project runtime commands in the host shell. Use a service shell.
 | Redis | `lando ssh -s redis` | `docker exec -it langgraph-redis sh` |
 | Ollama | `lando ssh -s ollama` | `docker exec -it ollama sh` |
 | MCP filesystem | `lando ssh -s mcp-filesystem` | `docker exec -it langgraph-mcp-filesystem sh` |
+| MCP shell | `lando ssh -s mcp-shell` | `docker exec -it langgraph-mcp-shell sh` |
 | Charts | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
 
 Use `lando ssh -s <service> -c "<cmd>"` (or `docker exec -it <container> sh -lc "<cmd>"`) for one-off commands.

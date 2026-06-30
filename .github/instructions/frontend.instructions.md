@@ -116,6 +116,11 @@ Baseline datastore services that must remain represented are:
 - `postgres` (durable checkpoints)
 - `redis` (orchestration/state coordination)
 
+Baseline MCP services that should remain represented are:
+
+- `mcp-filesystem` (sandboxed file tools)
+- `mcp-shell` (allowlisted shell tools)
+
 ## Adding a frontend npm dependency
 
 ```bash

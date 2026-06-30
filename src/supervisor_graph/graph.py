@@ -65,15 +65,21 @@ async def _load_mcp_tools():
     if os.environ.get("MCP_FILESYSTEM_ENABLED", "true").lower() not in {"1", "true", "yes"}:
         return []
 
-    mcp_url = os.environ.get("MCP_FILESYSTEM_URL", "http://mcp-filesystem:8765/mcp")
-    client = MultiServerMCPClient(
-        {
-            "filesystem": {
-                "transport": "http",
-                "url": mcp_url,
-            }
+    filesystem_url = os.environ.get("MCP_FILESYSTEM_URL", "http://mcp-filesystem:8765/mcp")
+    servers = {
+        "filesystem": {
+            "transport": "http",
+            "url": filesystem_url,
         }
-    )
+    }
+    if os.environ.get("MCP_SHELL_ENABLED", "true").lower() in {"1", "true", "yes"}:
+        shell_url = os.environ.get("MCP_SHELL_URL", "http://mcp-shell:8770/mcp")
+        servers["shell"] = {
+            "transport": "http",
+            "url": shell_url,
+        }
+
+    client = MultiServerMCPClient(servers)
     try:
         return await client.get_tools()
     except Exception:  # noqa: BLE001

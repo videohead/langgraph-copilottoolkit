@@ -58,6 +58,28 @@ services:
       timeout: 5s
       retries: 8
 
+  mcp-shell:
+    build:
+      context: .
+      dockerfile: mcp-shell/Dockerfile
+    container_name: langgraph-mcp-shell
+    networks:
+      - langgraph-net
+    ports:
+      - "8770:8770"
+    environment:
+      MCP_SHELL_ROOT: /workspace-data
+      MCP_SHELL_TIMEOUT_SECONDS: "15"
+      MCP_SHELL_MAX_OUTPUT_BYTES: "65536"
+      MCP_SHELL_ALLOWLIST: "ls,cat,head,tail,pwd,echo,find,grep,rg,sed,awk,wc,stat,du,df,mkdir,cp,mv,touch"
+    volumes:
+      - ./workspace-data:/workspace-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8770/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
@@ -93,6 +115,8 @@ services:
         condition: service_healthy
       mcp-filesystem:
         condition: service_healthy
+      mcp-shell:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -107,6 +131,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
+      MCP_SHELL_URL: http://mcp-shell:8770/mcp
       POSTGRES_URI: "${POSTGRES_URI:-postgresql://langgraph:langgraph@postgres:5432/langgraph?sslmode=disable}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
     volumes:
@@ -126,6 +151,8 @@ services:
         condition: service_healthy
       mcp-filesystem:
         condition: service_healthy
+      mcp-shell:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -139,6 +166,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5-coder:7b
       MCP_FILESYSTEM_URL: http://mcp-filesystem:8765/mcp
+      MCP_SHELL_URL: http://mcp-shell:8770/mcp
       POSTGRES_URI: "${POSTGRES_URI:-postgresql://langgraph:langgraph@postgres:5432/langgraph?sslmode=disable}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
       LANGGRAPH_REGISTRY_FILE: /workspace/langgraph.json

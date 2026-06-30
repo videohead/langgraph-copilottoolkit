@@ -31,10 +31,13 @@ Don't be a HITW (Human in the way!)
 ```
 Browser
   └─▶ langgraph.lndo.site          (Next.js :3000  — CopilotKit UI)
-        └─▶ /api/copilotkit/*       (CopilotKit Runtime — Next.js API route)
-              └─▶ django:8080       (Django AG-UI streaming endpoint)
-        ├─▶ ollama:11434  (Ollama LLM)
-        └─▶ postgres:5432 (LangGraph durable checkpoints)
+    └─▶ /api/copilotkit/*       (CopilotKit Runtime — Next.js API route)
+      └─▶ django:8080       (Django AG-UI streaming endpoint)
+        ├─▶ mcp-filesystem:8765 (sandboxed file tools)
+        ├─▶ mcp-shell:8770      (allowlisted shell tools)
+        ├─▶ ollama:11434        (Ollama LLM)
+        ├─▶ redis:6379          (coordination cache)
+        └─▶ postgres:5432       (durable checkpoints)
 ```
 
 Additional services:
@@ -45,8 +48,10 @@ Additional services:
 | `api.langgraph.lndo.site` | `django` | AG-UI + REST API |
 | `langgraph-api.lndo.site` | `appserver` | Raw LangGraph dev server |
 | `mcpfs.langgraph.lndo.site` | `mcp-filesystem` | Streamable HTTP MCP filesystem tools (sandboxed) |
+| `mcpshell.langgraph.lndo.site` | `mcp-shell` | Streamable HTTP MCP shell tools (allowlisted + sandboxed cwd) |
 | `charts.langgraph.lndo.site` | `charts` | Per-graph Mermaid PNG viewer |
 | `postgres.langgraph.lndo.site` | `postgres` | Durable LangGraph checkpoint storage |
+| `redis.langgraph.lndo.site` | `redis` | LangGraph coordination/state cache |
 
 > **Note:** `.lndo.site` DNS may be blocked by system security policy. Use `lando info` to get the `localhost` port for each service.
 
@@ -351,8 +356,9 @@ lando python <script>
 lando pull-model
 lando ollama list
 
-# MCP filesystem service
+# MCP tool services
 lando mcpfs-shell
+lando mcpshell-shell
 
 # CLI graph runner (bypasses the UI)
 lando graph basic "Write a hello world in Rust"
@@ -370,6 +376,7 @@ Use the container shell for app commands. Do not run project `npm`, `python`, `p
 | LangGraph runner (`run_graph.py`, `src/`) | `lando ssh -s appserver` | `docker exec -it langgraph-dev sh` |
 | Ollama service | `lando ssh -s ollama` | `docker exec -it ollama sh` |
 | MCP filesystem | `lando ssh -s mcp-filesystem` | `docker exec -it langgraph-mcp-filesystem sh` |
+| MCP shell | `lando ssh -s mcp-shell` | `docker exec -it langgraph-mcp-shell sh` |
 | Chart viewer (nginx) | `lando ssh -s charts` | `docker exec -it langgraph-charts sh` |
 
 Examples:
@@ -464,6 +471,7 @@ Port mapping:
 | 3000 | Next.js frontend |
 | 8080 | Django API |
 | 8765 | MCP filesystem (Streamable HTTP `/mcp`) |
+| 8770 | MCP shell (Streamable HTTP `/mcp`) |
 | 8123 | LangGraph dev server |
 | 8124 | Chart viewer |
 | 11434 | Ollama |
@@ -500,6 +508,45 @@ The MCP filesystem server is sandboxed to `workspace-data/` on the host (`/works
 
 To let agents use a different writable root, change the `MCP_FILESYSTEM_ROOT` env var and corresponding volume mount in `docker-compose.yml` and `.lando.yml`.
 
+## MCP shell security model
+
+The MCP shell server is sandboxed to `workspace-data/` on the host (`/workspace-data` in container).
+
+- Commands run with `cwd` enforced inside `MCP_SHELL_ROOT`.
+- The executable is restricted by `MCP_SHELL_ALLOWLIST`.
+- Runtime is bounded by `MCP_SHELL_TIMEOUT_SECONDS`.
+- Stdout/stderr are clipped by `MCP_SHELL_MAX_OUTPUT_BYTES`.
+
+To adjust permissions, update `MCP_SHELL_ALLOWLIST` and related env vars in both `docker-compose.yml` and `.lando.yml`.
+
+### Editing the shell allowlist
+
+1. Edit `MCP_SHELL_ALLOWLIST` in both `docker-compose.yml` and `.lando.yml`.
+2. Keep entries as comma-separated executable names (for example: `ls,cat,head,tail,pwd,echo,find,grep,rg`).
+3. Restart or recreate the `mcp-shell` container so it reloads environment variables.
+
+Lando:
+
+```bash
+lando rebuild -y
+```
+
+Docker Compose:
+
+```bash
+docker compose up -d --build mcp-shell
+```
+
+### Is allowlist reload dynamic?
+
+No. The allowlist is loaded from environment variables when `mcp-shell/server.py` starts, so changing `MCP_SHELL_ALLOWLIST` requires restarting `mcp-shell`.
+
+### Should allowlist live in Django or Postgres?
+
+- Keep the canonical allowlist in `mcp-shell` environment, because enforcement must happen where commands execute.
+- Django can add policy-level gating (for example per-profile shell on/off), but that is defense-in-depth, not the primary enforcement point.
+- Postgres storage is optional and usually unnecessary for local/dev setups; it adds sync/reload complexity and still requires `mcp-shell` to enforce at execution time.
+
 ---
 
 ## Why not `langchain/langgraph-api:latest-py3.12`?
@@ -516,6 +563,7 @@ docker-compose.yml           Equivalent Docker Compose stack
 Dockerfile                   LangGraph dev server image
 langgraph.json               Graph ID → module path mappings
 mcp-filesystem/              Streamable HTTP MCP filesystem server
+mcp-shell/                   Streamable HTTP MCP shell server (allowlisted)
 
 frontend/                    Next.js + CopilotKit
   app/
@@ -538,8 +586,8 @@ django/                      Django AG-UI API
   Dockerfile
 
 src/
-  basic_graph/graph.py       Ollama ReAct graph with MCP filesystem tools
-  swarm_graph/graph.py       Multi-agent swarm graph
+  basic_graph/graph.py       Ollama ReAct graph with MCP filesystem + shell tools
+  swarm_graph/graph.py       Multi-agent swarm graph with guarded MCP tools
 
 scripts/
   run-graph.sh               CLI runner for any graph ID

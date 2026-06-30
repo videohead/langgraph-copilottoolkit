@@ -52,7 +52,7 @@ _PROJECT_PROFILES_FALLBACK = [
 ]
 
 _GRAPH_DESCRIPTION_FALLBACKS = {
-    "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools.",
+    "basic": "ReAct chat agent powered by Ollama with MCP filesystem tools and optional allowlisted shell command tools.",
     "swarm_v1": "Multi-agent swarm: planner → coder → reviewer → writer.",
     "reflection_v1": "Draft-critique-revise loop adapted from LangGraph reflection examples for higher-quality answers.",
     "plan_execute_v1": "Planner-executor-synthesizer workflow adapted from plan-and-execute examples for structured reasoning.",

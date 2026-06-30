@@ -82,6 +82,11 @@ test("services dashboard reports startup status for core and additional services
   assert.equal(mcpFilesystem?.startup.status, "up");
   assert.equal(mcpFilesystem?.detail, "MCP transport: http://mcpfs.langgraph.lndo.site/mcp");
 
+  const mcpShell = payload.services.find((service) => service.id === "mcp-shell");
+  assert.equal(mcpShell?.location, "http://mcpshell.langgraph.lndo.site/health");
+  assert.equal(mcpShell?.startup.status, "up");
+  assert.equal(mcpShell?.detail, "MCP transport: http://mcpshell.langgraph.lndo.site/mcp");
+
   const basicChart = payload.graphCharts.find((chart) => chart.graphId === "basic");
   assert.equal(basicChart?.available, true);
   assert.ok(basicChart?.pngUrl?.endsWith("/swarm-chart.png"));

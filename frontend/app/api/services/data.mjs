@@ -21,6 +21,11 @@ const DEFAULT_ENDPOINTS = {
     "http://mcp-filesystem:8765",
     "http://mcp-filesystem.langgraph.internal:8765",
   ],
+  mcpShell: [
+    process.env.MCP_SHELL_INTERNAL_URL,
+    "http://mcp-shell:8770",
+    "http://mcp-shell.langgraph.internal:8770",
+  ],
   charts: [
     process.env.CHARTS_INTERNAL_URL,
     "http://charts:80",
@@ -31,6 +36,11 @@ const DEFAULT_ENDPOINTS = {
     "postgres",
     "postgres.langgraph.internal",
   ],
+  redis: [
+    process.env.REDIS_INTERNAL_HOST,
+    "redis",
+    "redis.langgraph.internal",
+  ],
 };
 
 const PUBLIC_LOCATIONS = {
@@ -39,8 +49,10 @@ const PUBLIC_LOCATIONS = {
   appserver: process.env.LANGGRAPH_PUBLIC_URL ?? "http://langgraph-api.lndo.site",
   ollama: process.env.OLLAMA_PUBLIC_URL ?? "http://localhost:11434",
   mcpFilesystem: process.env.MCP_FILESYSTEM_PUBLIC_URL ?? "http://mcpfs.langgraph.lndo.site",
+  mcpShell: process.env.MCP_SHELL_PUBLIC_URL ?? "http://mcpshell.langgraph.lndo.site",
   charts: process.env.CHARTS_PUBLIC_URL ?? "http://charts.langgraph.lndo.site",
   postgres: process.env.POSTGRES_PUBLIC_URL ?? "postgres://postgres.langgraph.lndo.site:5432/langgraph",
+  redis: process.env.REDIS_PUBLIC_URL ?? "redis://redis.langgraph.lndo.site:6379/0",
 };
 
 const FALLBACK_GRAPH_IDS = ["basic", "swarm_v1"];
@@ -363,6 +375,18 @@ export async function buildServicesDashboardData(options = {}) {
       ),
     },
     {
+      id: "mcp-shell",
+      name: "MCP Shell",
+      group: "additional",
+      location: joinUrl(PUBLIC_LOCATIONS.mcpShell, "/health"),
+      detail: `MCP transport: ${joinUrl(PUBLIC_LOCATIONS.mcpShell, "/mcp")}`,
+      startup: await probeUrls(
+        normalizeBaseUrls(DEFAULT_ENDPOINTS.mcpShell).map((base) => `${base}/health`),
+        fetchImpl,
+        timeoutMs,
+      ),
+    },
+    {
       id: "charts",
       name: "Charts",
       group: "additional",
@@ -380,6 +404,14 @@ export async function buildServicesDashboardData(options = {}) {
       location: PUBLIC_LOCATIONS.postgres,
       detail: "LangGraph checkpoint store",
       startup: await probeTcpHosts(normalizeBaseUrls(DEFAULT_ENDPOINTS.postgres), 5432, timeoutMs),
+    },
+    {
+      id: "redis",
+      name: "Redis",
+      group: "additional",
+      location: PUBLIC_LOCATIONS.redis,
+      detail: "LangGraph coordination cache",
+      startup: await probeTcpHosts(normalizeBaseUrls(DEFAULT_ENDPOINTS.redis), 6379, timeoutMs),
     },
   ];
 
