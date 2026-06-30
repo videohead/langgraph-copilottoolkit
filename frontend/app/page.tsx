@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CopilotChatConfigurationProvider } from "@copilotkit/react-core/v2/headless";
-import { CopilotSidebar } from "@copilotkit/react-ui";
+import { CopilotPopup } from "@copilotkit/react-ui";
 
 type GraphOption = {
   id: string;
@@ -217,23 +217,16 @@ export default function Home() {
   const activeGraph = visibleGraphs.find((g) => g.id === selectedGraph) ?? visibleGraphs[0];
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100 lg:pr-[420px]">
+    <main className="min-h-screen bg-gray-950 text-gray-100 pb-[30rem] lg:pb-[34rem]">
       {/* Header */}
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between gap-4">
+      <header className="border-b border-gray-800 px-6 py-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">LangGraph AI</h1>
           <p className="text-sm text-gray-400">CopilotKit · Django · Ollama</p>
         </div>
 
         {/* Profile and graph selectors */}
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          <Link
-            href="/services"
-            className="bg-blue-700 hover:bg-blue-600 border border-blue-500 rounded-md px-3 py-1.5 text-sm text-white"
-          >
-            Services Dashboard
-          </Link>
-
+        <div className="flex items-start gap-3 flex-wrap">
           <span className="text-sm text-gray-400">Profile:</span>
           <select
             value={selectedProfile}
@@ -277,6 +270,12 @@ export default function Home() {
 
       {/* Description strip */}
       <div className="px-6 py-3 bg-gray-900 border-b border-gray-800 text-sm text-gray-400 flex flex-col gap-1">
+        <Link
+          href="/services"
+          className="inline-flex w-fit rounded-md border border-blue-500 bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-600"
+        >
+          Services Dashboard
+        </Link>
         <span>{activeGraph?.description}</span>
         <span>
           Active root: <strong className="text-gray-300">{selectedFilesystemRoot}</strong> ·
@@ -285,9 +284,9 @@ export default function Home() {
       </div>
 
       {/* Content */}
-      <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
+      <div className="flex flex-col px-6 py-20">
         <p className="text-gray-500 max-w-sm">
-          Open the chat sidebar (bottom-right) to start a conversation with the{" "}
+          Open the chat dock at the bottom to start a conversation with the{" "}
           <strong className="text-gray-300">
             {activeGraph?.label}
           </strong>{" "}
@@ -296,12 +295,13 @@ export default function Home() {
       </div>
 
       {/*
-        CopilotSidebar renders a floating sidebar with the chat interface.
+        CopilotPopup renders the chat interface.
         agentId selects which of the registered CopilotRuntime agents to use.
       */}
       <CopilotChatConfigurationProvider agentId={selectedGraph}>
-        <CopilotSidebar
+        <CopilotPopup
           defaultOpen={true}
+          className="bottomDockChat"
           labels={{
             title: activeGraph?.label ?? "AI Chat",
             initial: `Hi! I'm the **${activeGraph?.label ?? "AI"}** agent using the **${activeProfile?.name ?? "default"}** profile. How can I help?`,

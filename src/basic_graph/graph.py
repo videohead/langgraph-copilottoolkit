@@ -101,6 +101,58 @@ def _extract_last_ai_message(messages):
     return None
 
 
+def _humanize_tool_payload(payload: dict) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+
+    if "path" in payload and "bytes_written" in payload:
+        return f"Wrote file to {payload['path']} ({payload['bytes_written']} bytes)."
+    if "path" in payload and "bytes_appended" in payload:
+        return f"Appended to {payload['path']} ({payload['bytes_appended']} bytes)."
+    if "deleted" in payload:
+        return f"Deleted {payload['deleted']}."
+    if "from" in payload and "to" in payload:
+        return f"Moved {payload['from']} to {payload['to']}."
+
+    is_shell_result = "command" in payload and (
+        "exit_code" in payload or "stdout" in payload or "stderr" in payload or "timed_out" in payload
+    )
+    if is_shell_result:
+        command = payload.get("command")
+        exit_code = payload.get("exit_code")
+        timed_out = payload.get("timed_out") is True
+        stdout = payload.get("stdout") if isinstance(payload.get("stdout"), str) else ""
+        stderr = payload.get("stderr") if isinstance(payload.get("stderr"), str) else ""
+
+        lines: list[str] = []
+        if isinstance(command, str) and command:
+            lines.append(f"Ran shell command: {command}")
+        if timed_out:
+            lines.append("Status: timed out")
+        elif exit_code is None:
+            lines.append("Exit code: unknown")
+        else:
+            lines.append(f"Exit code: {exit_code}")
+
+        if stdout.strip():
+            lines.append(f"stdout:\n{stdout.rstrip()}")
+        if stderr.strip():
+            lines.append(f"stderr:\n{stderr.rstrip()}")
+        if payload.get("stdout_truncated") is True:
+            lines.append("stdout output was truncated.")
+        if payload.get("stderr_truncated") is True:
+            lines.append("stderr output was truncated.")
+        if not stdout.strip() and not stderr.strip() and not timed_out:
+            lines.append("No output.")
+
+        return "\n".join(lines)
+
+    if "path" in payload:
+        return f"Updated {payload['path']}."
+
+    return None
+
+
 def _tool_result_to_text(result) -> str:
     if isinstance(result, str):
         return result
@@ -108,6 +160,10 @@ def _tool_result_to_text(result) -> str:
         parts: list[str] = []
         for item in result:
             if isinstance(item, dict):
+                friendly = _humanize_tool_payload(item)
+                if isinstance(friendly, str) and friendly:
+                    parts.append(friendly)
+                    continue
                 text = item.get("text")
                 if isinstance(text, str) and text:
                     parts.append(text)
@@ -117,6 +173,9 @@ def _tool_result_to_text(result) -> str:
                 parts.append(str(item))
         return "\n".join(p for p in parts if p)
     if isinstance(result, dict):
+        friendly = _humanize_tool_payload(result)
+        if isinstance(friendly, str) and friendly:
+            return friendly
         return json.dumps(result, ensure_ascii=True)
     return str(result)
 
@@ -228,21 +287,7 @@ def _humanize_tool_payload_text(text: str) -> str | None:
     except json.JSONDecodeError:
         return None
 
-    if not isinstance(payload, dict):
-        return None
-
-    if "path" in payload and "bytes_written" in payload:
-        return f"Wrote file to {payload['path']} ({payload['bytes_written']} bytes)."
-    if "path" in payload and "bytes_appended" in payload:
-        return f"Appended to {payload['path']} ({payload['bytes_appended']} bytes)."
-    if "deleted" in payload:
-        return f"Deleted {payload['deleted']}."
-    if "from" in payload and "to" in payload:
-        return f"Moved {payload['from']} to {payload['to']}."
-    if "path" in payload:
-        return f"Updated {payload['path']}."
-
-    return None
+    return _humanize_tool_payload(payload)
 
 
 def _find_tool(name: str):
